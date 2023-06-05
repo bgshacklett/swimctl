@@ -1,0 +1,17 @@
+ingress:
+  enabled: true
+  hosts:
+    - host: swimctl.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+resources:
+  limits:
+    smarter-devices/i2c-1: 1
+    smarter-devices/i2c-20: 1
+    smarter-devices/i2c-21: 1
+  requests:
+    smarter-devices/i2c-1: 1
+    smarter-devices/i2c-20: 1
+    smarter-devices/i2c-21: 1
