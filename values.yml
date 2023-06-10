@@ -27,9 +27,6 @@ deploymentStrategy: Recreate
 
 
 env:
-  - name: NODE_RED_SETTINGS
-    value: '/data/custom-settings.js'
-
   - name: NODE_RED_ENABLE_PROJECTS
     value: 'true'
 
@@ -46,20 +43,15 @@ ingress:
           pathType: ImplementationSpecific
 
 
-persistence:
-  enabled: true
-  size: "1Gi"
+settings:
+  name: settings
+  configMapName: node-red-settings
 
-
-extraVolumeMounts:
-  - name: node-red-settings
-    mountPath: /data/custom-settings.js
-    subPath: custom-settings.js
 
 extraVolumes:
   - name: node-red-settings
     configMap:
-      name: nodered-settings
+      name: node-red-settings
 
 
 initContainers:

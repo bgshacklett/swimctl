@@ -13,9 +13,9 @@ data:
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nodered-settings
+  name: node-red-settings
 data:
-  custom-settings.js: |
+  settings.js: |
     // JS
     // Require the default settings from Node-RED
     const defaults = require("/usr/src/node-red/node_modules/node-red/settings");
