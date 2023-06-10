@@ -1,3 +1,4 @@
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -7,3 +8,24 @@ data:
   conf.yaml: |
     - devicematch: ^i2c-[0-9]+$
       nummaxdevices: 1
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodered-settings
+data:
+  custom-settings.js: |
+    // JS
+    // Require the default settings from Node-RED
+    const defaults = require("/usr/src/node-red/node_modules/node-red/settings");
+
+    // Require your custom settings
+    const customSettings = {
+      activeProject: process.env.NODE_RED_ACTIVE_PROJECT || null,
+    }
+
+    // Merge the custom settings with the default settings
+    module.exports = Object.assign({}, defaults, customSettings);
+
+    // ENDJS

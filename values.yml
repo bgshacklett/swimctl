@@ -1,10 +1,8 @@
-ingress:
-  enabled: true
-  hosts:
-    - host: swimctl.local
-      paths:
-        - path: /
-          pathType: ImplementationSpecific
+image:
+  registry: ghcr.io
+  repository: bgshacklett/swimctl
+  tag: latest
+
 
 resources:
   limits:
@@ -15,3 +13,72 @@ resources:
     smarter-devices/i2c-1: 1
     smarter-devices/i2c-20: 1
     smarter-devices/i2c-21: 1
+
+
+podSecurityContext:
+  runAsUser: 1000 # UID
+  runAsGroup: 1000 # GID
+  fsGroup: 1000 # GID for volume permission
+
+
+deploymentStrategy: Recreate
+
+
+env:
+  - name: NODE_RED_SETTINGS
+    value: '/data/custom-settings.js'
+
+  - name: NODE_RED_ENABLE_PROJECTS
+    value: 'true'
+
+  - name: NODE_RED_ACTIVE_PROJECT
+    value: swimctl-flows
+
+
+ingress:
+  enabled: true
+  hosts:
+    - host: swimctl.local
+      paths:
+        - path: /
+          pathType: ImplementationSpecific
+
+
+persistence:
+  enabled: true
+  size: "1Gi"
+
+
+extraVolumeMounts:
+  - name: node-red-settings
+    mountPath: /data/custom-settings.js
+    subPath: custom-settings.js
+
+extraVolumes:
+  - name: node-red-settings
+    configMap:
+      name: nodered-settings
+
+
+initContainers:
+  - name: clone-repo
+    image: alpine/git # or any image that has git
+    env:
+      - name: GIT_REPO
+        value: "https://github.com/bgshacklett/swimctl-flows.git"
+      - name: GIT_VERSION
+        value: "main"
+    securityContext:
+      runAsUser: 10003
+      runAsGroup: 10003
+    command:
+    - /bin/sh
+    - -c
+    - |
+      rm -rf /data/projects/* &&
+      git clone $(GIT_REPO) /data/projects/swimctl-flows &&
+      cd /data/projects/swimctl-flows
+      git checkout $(GIT_VERSION)
+    volumeMounts:
+    - mountPath: /data
+      name: data
