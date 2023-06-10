@@ -19,6 +19,8 @@ podSecurityContext:
   runAsUser: 1000 # UID
   runAsGroup: 1000 # GID
   fsGroup: 1000 # GID for volume permission
+  supplementalGroups:
+    - 998
 
 
 deploymentStrategy: Recreate
