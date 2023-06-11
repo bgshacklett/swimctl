@@ -29,3 +29,20 @@ data:
     module.exports = Object.assign({}, defaults, customSettings);
 
     // ENDJS
+
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: node-red-projects-settings
+data:
+  .config.projects.json: |
+    {
+        "projects": {
+            "swimctl-flows": {
+                "credentialSecret": false
+            }
+        },
+        "activeProject": "swimctl-flows"
+    }

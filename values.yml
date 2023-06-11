@@ -48,10 +48,16 @@ settings:
   configMapName: node-red-settings
 
 
+extraVolumeMounts:
+  - name: node-red-projects-settings
+    mountPath: /data/.config.projects.json
+    subPath: .config.projects.json
+
+
 extraVolumes:
-  - name: node-red-settings
+  - name: node-red-projects-settings
     configMap:
-      name: node-red-settings
+      name: node-red-projects-settings
 
 
 initContainers:
@@ -71,7 +77,7 @@ initContainers:
     - |
       rm -rf /data/projects/* &&
       git clone $(GIT_REPO) /data/projects/swimctl-flows &&
-      cd /data/projects/swimctl-flows
+      cd /data/projects/swimctl-flows &&
       git checkout $(GIT_VERSION)
     volumeMounts:
     - mountPath: /data
