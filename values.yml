@@ -33,6 +33,25 @@ env:
   - name: NODE_RED_ACTIVE_PROJECT
     value: swimctl-flows
 
+  - name: GITHUB_TOKEN_FLOWS
+    valueFrom:
+      secretKeyRef:
+        name: github-secrets-swimctl-flows
+        key: token
+
+  - name: GITHUB_OWNER_FLOWS
+    valueFrom:
+      secretKeyRef:
+        name: github-secrets-swimctl-flows
+        key: owner
+
+  - name: GITHUB_REPO_NAME_FLOWS
+    valueFrom:
+      secretKeyRef:
+        name: github-secrets-swimctl-flows
+        key: repo_name
+
+
 
 ingress:
   enabled: true
@@ -66,8 +85,10 @@ initContainers:
     env:
       - name: GIT_REPO
         value: "https://github.com/bgshacklett/swimctl-flows.git"
+
       - name: GIT_VERSION
         value: "main"
+
     securityContext:
       runAsUser: 10003
       runAsGroup: 10003
@@ -75,10 +96,26 @@ initContainers:
     - /bin/sh
     - -c
     - |
+      #!/bin/sh
       rm -rf /data/projects/* &&
       git clone $(GIT_REPO) /data/projects/swimctl-flows &&
       cd /data/projects/swimctl-flows &&
       git checkout $(GIT_VERSION)
+
+      # Create post-commit hook
+      cat << 'EOF' > .git/hooks/post-commit
+      #!/bin/bash
+      commit_hash=$(git rev-parse HEAD)
+      patch_content=$(git format-patch -1 $commit_hash --stdout | base64 | awk '{printf "%s\\n", $0}' )
+      url="https://api.github.com/repos/$GITHUB_OWNER_FLOWS/$GITHUB_REPO_NAME_FLOWS/actions/workflows/apply-patch.yml/dispatches"
+      curl -X POST \
+        -H "Accept: application/vnd.github.v3+json" \
+        -H "Authorization: Bearer $GITHUB_TOKEN_FLOWS" \
+        "$url" \
+        -d "{\"ref\":\"main\", \"inputs\": {\"patchContent\": \"$patch_content\"}}"
+      EOF
+      chmod +x .git/hooks/post-commit
+      #end-range
     volumeMounts:
     - mountPath: /data
       name: data
