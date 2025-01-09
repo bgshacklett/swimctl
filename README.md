@@ -5,16 +5,42 @@ A swimming pool automation controller
 
 ## Install
 
+### Prepare the Raspberry Pi
+
+* Enable cgroups:
+
+    ```
+    if (grep 'cgroup' /boot/firmware/cmdline.txt >/dev/null); then
+      echo 'cgroups config found in /boot/firmware/cmdline.txt'
+    else
+      sudo sed -i 's/$/\ cgroup_memory=1 cgroup_enable=memory/' /boot/firmware/cmdline.txt
+    fi
+    ```
+
+* Configure i2c
+
+    ```
+    sudo raspi-config nonint do_i2c 0
+    ```
+
+
+### Install k3s using k3sup (ketchup)
+
 ### Create Secrets
 
 ```
-kubectl create secret generic github-secrets \
+kubectl create secret generic github-secrets-swimctl-flows \
   --from-literal=token="${GH_TOKEN}" \
   --from-literal=owner="${GH_REPO_OWNER}" \
   --from-literal=repo_name="${GH_REPO_NAME}"
 ```
 
 Be sure to replace the placeholder variables with the correct values.
+
+
+## Apply Static Manifests
+
+k apply -f .
 
 
 ### Helm Install
