@@ -2,6 +2,7 @@ image:
   registry: ghcr.io
   repository: bgshacklett/swimctl
   tag: latest
+  pullPolicy: Always
 
 
 resources:
@@ -50,7 +51,6 @@ env:
       secretKeyRef:
         name: github-secrets-swimctl-flows
         key: repo_name
-
 
 
 ingress:
