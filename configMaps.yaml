@@ -23,7 +23,6 @@ data:
     // Require your custom settings
     const customSettings = {
       activeProject: process.env.NODE_RED_ACTIVE_PROJECT || null,
-      credentialSecret: process.env.NODE_RED_CREDENTIAL_SECRET,
     }
 
     // Merge the custom settings with the default settings

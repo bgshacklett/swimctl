@@ -53,11 +53,11 @@ env:
         name: swimctl
         key: gh_repo_name
 
-  - name: NODE_RED_CREDENTIAL_SECRET
+  - name: MQTT_PASSWORD
     valueFrom:
       secretKeyRef:
         name: swimctl
-        key: node_red_credential_secret
+        key: mqtt_password
 
 
 ingress:

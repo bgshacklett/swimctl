@@ -33,7 +33,7 @@ kubectl create secret generic swimctl \
   --from-literal=gh_token="${GH_TOKEN}" \
   --from-literal=gh_owner="${GH_REPO_OWNER}" \
   --from-literal=gh_repo_name="${GH_REPO_NAME}" \
-  --from-literal=node_red_credential_secret="$(openssl rand -base64 32)"
+  --from-literal=mqtt_password="${MQTT_PASSWORD}"
 ```
 
 Be sure to replace the placeholder variables with the correct values.
