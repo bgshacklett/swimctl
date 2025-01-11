@@ -38,20 +38,26 @@ env:
   - name: GITHUB_TOKEN_FLOWS
     valueFrom:
       secretKeyRef:
-        name: github-secrets-swimctl-flows
-        key: token
+        name: swimctl
+        key: gh_token
 
   - name: GITHUB_OWNER_FLOWS
     valueFrom:
       secretKeyRef:
-        name: github-secrets-swimctl-flows
-        key: owner
+        name: swimctl
+        key: gh_owner
 
   - name: GITHUB_REPO_NAME_FLOWS
     valueFrom:
       secretKeyRef:
-        name: github-secrets-swimctl-flows
-        key: repo_name
+        name: swimctl
+        key: gh_repo_name
+
+  - name: NODE_RED_CREDENTIAL_SECRET
+    valueFrom:
+      secretKeyRef:
+        name: swimctl
+        key: node_red_credential_secret
 
 
 ingress:

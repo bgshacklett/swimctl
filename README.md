@@ -29,10 +29,11 @@ A swimming pool automation controller
 ### Create Secrets
 
 ```
-kubectl create secret generic github-secrets-swimctl-flows \
-  --from-literal=token="${GH_TOKEN}" \
-  --from-literal=owner="${GH_REPO_OWNER}" \
-  --from-literal=repo_name="${GH_REPO_NAME}"
+kubectl create secret generic swimctl \
+  --from-literal=gh_token="${GH_TOKEN}" \
+  --from-literal=gh_owner="${GH_REPO_OWNER}" \
+  --from-literal=gh_repo_name="${GH_REPO_NAME}" \
+  --from-literal=node_red_credential_secret="$(openssl rand -base64 32)"
 ```
 
 Be sure to replace the placeholder variables with the correct values.
