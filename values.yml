@@ -21,7 +21,8 @@ podSecurityContext:
   runAsGroup: 1000 # GID
   fsGroup: 1000 # GID for volume permission
   supplementalGroups:
-    - 998
+    - 994  # Add i2c group membership
+           # TODO: find out why this changed from 998
 
 
 deploymentStrategy: Recreate
