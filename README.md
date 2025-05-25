@@ -28,8 +28,14 @@ A swimming pool automation controller
 
 From a machine with access to the Pi:
 ```
-export hostname=""  # set hostname
-k3sup install --host ${hostname} --user pi
+export hostname=''  # set hostname of Pi
+
+k3sup install \
+  --host "${hostname}" \
+  --user pi \
+  --context "${hostname}"
+  --merge \
+  --local-path ~/.kube/config
 ```
 
 ### Create Secrets
