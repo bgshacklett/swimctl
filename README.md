@@ -26,6 +26,12 @@ A swimming pool automation controller
 
 ### Install k3s using k3sup (ketchup)
 
+From a machine with access to the Pi:
+```
+export hostname=""  # set hostname
+k3sup install --host ${hostname} --user pi
+```
+
 ### Create Secrets
 
 ```
