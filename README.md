@@ -41,7 +41,7 @@ k3sup install \
 ### Create Secrets
 
 ```
-kubectl create secret generic swimctl \
+kubectl --context "${hostname}" create secret generic swimctl \
   --from-literal=gh_token="${GH_TOKEN}" \
   --from-literal=gh_owner="${GH_REPO_OWNER}" \
   --from-literal=gh_repo_name="${GH_REPO_NAME}" \
@@ -53,12 +53,12 @@ Be sure to replace the placeholder variables with the correct values.
 
 ## Apply Static Manifests
 
-k apply -f .
+k --context "${hostname}" apply -f .
 
 
 ### Helm Install
-helm install node-red oci://ghcr.io/schwarzit/charts/node-red --values values.yml
+helm --kube-context "${hostname}" install node-red oci://ghcr.io/schwarzit/charts/node-red --values values.yml
 
 
 ## Update
-helm upgrade node-red oci://ghcr.io/schwarzit/charts/node-red --values values.yml
+helm --kube-context "${hostname}" upgrade node-red oci://ghcr.io/schwarzit/charts/node-red --values values.yml
