@@ -123,7 +123,6 @@ cat <<-EOF > /tmp/ANSWERFILE
 # and therefore keep (do not reset) network interfaces while running in background
 # requires alpine-conf 3.15.1 and later, available from Alpine 3.17
 SSH_CONNECTION="FAKE" setup-alpine -ef /tmp/ANSWERFILE
-lbu commit -d
 
 ########################################################
 
@@ -142,6 +141,9 @@ fi
 # One‑time cleanup
 shred -u /media/mmcblk0p1/wpa_supplicant.conf 2>/dev/null || true
 rm -f /media/mmcblk0p1/unattended.sh
+
+# Commit changes
+lbu commit -d
 
 _logger "Finished unattended script. Rebooting!"
 reboot
