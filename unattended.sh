@@ -131,13 +131,6 @@ SSH_CONNECTION="FAKE" setup-alpine -ef /tmp/ANSWERFILE
 mkdir -p /etc/modules-load.d
 printf '%s\n' i2c_bcm2835 i2c_dev > /etc/modules-load.d/i2c.conf
 
-# Optional: convert first USB drive to data‑disk and point K3s there
-DISK=/dev/sda
-if [ -b "$DISK" ] && ! mountpoint -q /var; then
-  setup-disk -m data "$DISK"
-  echo 'K3S_DATA_DIR=/var/lib/rancher/k3s' >> /etc/profile
-fi
-
 # One‑time cleanup
 shred -u /media/mmcblk0p1/wpa_supplicant.conf 2>/dev/null || true
 rm -f /media/mmcblk0p1/unattended.sh
