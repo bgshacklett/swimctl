@@ -121,6 +121,25 @@ setup_ssh_keys() {
 
 
 ###############################################################################
+# Configure kernel command line settings
+###############################################################################
+setup_cmdline() {
+  if ! grep -q 'cgroup_memory=1' "$BOOT_MNT/cmdline.txt"; then
+    sudo sed -i 's#$# cgroup_memory=1 cgroup_enable=memory#' "$BOOT_MNT/cmdline.txt"
+  fi
+}
+
+
+###############################################################################
+# Add settings to usercfg.txt
+###############################################################################
+setup_usercfg() {
+  if ! grep -q 'i2c_arm' "$BOOT_MNT/usercfg.txt"; then
+  echo 'dtparam=i2c_arm=on' > "$BOOT_MNT/usercfg.txt"
+}
+
+
+###############################################################################
 # unattended.sh (executed once by overlay)
 ###############################################################################
 setup_unattended_script() {
@@ -168,6 +187,8 @@ main() {
 
   locate_boot "$boot_dir"
   download_headless_bootstrap
+  setup_cmdline
+  setup_usercfg
   setup_wpa_supplicant
   setup_ssh_keys
   setup_unattended_script

@@ -128,17 +128,9 @@ lbu commit -d
 ########################################################
 
 
-# Enable I²C in firmware
-grep -q '^dtparam=i2c_arm=on' /boot/usercfg.txt 2>/dev/null ||
-  echo 'dtparam=i2c_arm=on' >> /boot/usercfg.txt
-
 # Autoload I²C modules
 mkdir -p /etc/modules-load.d
 printf '%s\n' i2c_bcm2835 i2c_dev > /etc/modules-load.d/i2c.conf
-
-# Add cgroup v1 memory flags if missing
-grep -q 'cgroup_memory=1' /boot/cmdline.txt ||
-  sed -i 's#$# cgroup_memory=1 cgroup_enable=memory#' /boot/cmdline.txt
 
 # Optional: convert first USB drive to data‑disk and point K3s there
 DISK=/dev/sda
