@@ -61,7 +61,8 @@ download_headless_bootstrap() {
   API_URL=$(
     curl -fsSL 'https://api.github.com/repos/macmpi/alpine-linux-headless-bootstrap/releases/latest' \
     | jq -r '.body' \
-    | grep -oP '(?<=\]\().*?(?=\))'
+    | grep -oP '(?<=\]\().*?(?=\))' \
+    | sed 's|/blob/|/raw/|'
   )
 
   [[ -n $API_URL ]] && curl -fsSL -L "$API_URL" -o "$DEST"
