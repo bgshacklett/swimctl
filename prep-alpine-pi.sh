@@ -154,46 +154,42 @@ setup_unattended_script() {
 ###############################################################################
 # main script
 ###############################################################################
-main() {
-  OPTIND=1  # Reset in case getopts has been used previously in the shell.
+OPTIND=1  # Reset in case getopts has been used previously in the shell.
 
-  verbose=0
+verbose=0
 
-  while getopts "h?b:v" opt; do
-    case "$opt" in
-      h|\?)
-        usage
-        exit 0
-        ;;
-      b)  boot_dir=$OPTARG
-        ;;
-      v)  verbose=1
-        ;;
-    esac
+while getopts "h?b:v" opt; do
+  case "$opt" in
+    h|\?)
+      usage
+      exit 0
+      ;;
+    b)  boot_dir=$OPTARG
+      ;;
+    v)  verbose=1
+      ;;
+  esac
 
-    if [[ "$verbose" == 1 ]]; then
-      echo "\$opt: -$opt ${OPTARG:-}"
-    fi
-  done
+  if [[ "$verbose" == 1 ]]; then
+    echo "\$opt: -$opt ${OPTARG:-}"
+  fi
+done
 
-  shift $((OPTIND-1))
+shift $((OPTIND-1))
 
-  [ "${1:-}" = "--" ] && shift
+[ "${1:-}" = "--" ] && shift
 
 
-  [[ -z ${boot_dir:-} ]] && die "$(usage)"
+[[ -z ${boot_dir:-} ]] && die "$(usage)"
 
-  echo "preparing SD card for alpine-linux on raspberry pi"
+echo "preparing SD card for alpine-linux on raspberry pi"
 
-  locate_boot "$boot_dir"
-  download_headless_bootstrap
-  setup_cmdline
-  setup_usercfg
-  setup_wpa_supplicant
-  setup_ssh_keys
-  setup_unattended_script
+locate_boot "$boot_dir"
+download_headless_bootstrap
+setup_cmdline
+setup_usercfg
+setup_wpa_supplicant
+setup_ssh_keys
+setup_unattended_script
 
-  echo "✔  SD card prepared – you may now eject and boot the Pi."
-}
-
-main "$@"
+echo "✔  SD card prepared – you may now eject and boot the Pi."
