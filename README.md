@@ -53,7 +53,7 @@ Be sure to replace the placeholder variables with the correct values.
 
 ## Apply Static Manifests
 
-k apply -f .
+k apply -f ./manifests
 
 
 ### Helm Install
