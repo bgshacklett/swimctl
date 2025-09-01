@@ -1,0 +1,5 @@
+.devrootfs/*
+dist/*
+build/*
+**/*.orig
+cache/*
