@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# alpine-rpi-diskless.sh — Alpine RPi in QEMU (DISKLESS, single FAT32 partition)
+# alpine-rpi-qemu.sh — Alpine RPi in QEMU (DISKLESS, single FAT32 partition)
 #
 # Usage:
-#   ./scripts/alpine-rpi-diskless.sh make-image    # create alpine-rpi.img (single FAT32)
-#   ./scripts/alpine-rpi-diskless.sh populate      # fetch tarball, extract to p1, add DTB, write cmdline
-#   ./scripts/alpine-rpi-diskless.sh launch        # boot QEMU into diskless Alpine (live/installer)
-#   BOARD=pi3 ./scripts/alpine-rpi-diskless.sh all # do everything for Pi 3 model
+#   ./scripts/alpine-rpi-qemu.sh make-image    # create alpine-rpi.img (single FAT32)
+#   ./scripts/alpine-rpi-qemu.sh populate      # fetch tarball, extract to p1, add DTB, write cmdline
+#   ./scripts/alpine-rpi-qemu.sh launch        # boot QEMU into diskless Alpine (live/installer)
+#   BOARD=pi3 ./scripts/alpine-rpi-qemu.sh all # do everything for Pi 3 model
 #
 # Inside the guest:
 #   setup-alpine
