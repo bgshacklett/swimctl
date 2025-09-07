@@ -6,7 +6,8 @@
 # SPDX-FileCopyrightText: Copyright 2022-2023, macmpi
 # SPDX-License-Identifier: MIT
 
-## collection of few code snippets as sample unnatteded actions some may find usefull
+## collection of few code snippets as sample unnatteded actions some may find
+## usefull
 
 ## will run encapusated within headless_unattended OpenRC service
 
@@ -14,8 +15,9 @@
 # only keep a single starting # on the line below
 ##NO_SSH
 
-# Uncomment to enable stdout and errors redirection to console (service won't show messages)
-# exec 1>/dev/console 2>&1
+# Uncomment to enable stdout and errors redirection to console (service won't
+# show messages)
+exec 1>/dev/console 2>&1
 
 # shellcheck disable=SC2142  # known special case
 alias _logger='logger -st "${0##*/}"'
@@ -81,7 +83,7 @@ cat <<-EOF > /tmp/ANSWERFILE
 	
 	auto wlan0
 	iface wlan0 inet dhcp
-	    wpa-ssid ${INTERFACESOPT_SSID}
+	    wpa-ssid ${INTERFACESOPTS_SSID}
 	    wpa-psk  ${INTERFACESOPTS_PSK}"
 	
 	# Set timezone to local time. This device performs tasks on a schedule, and
