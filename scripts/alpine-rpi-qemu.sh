@@ -2,23 +2,24 @@
 # alpine-rpi-qemu.sh — Alpine RPi in QEMU (DISKLESS, single FAT32 partition)
 #
 # Usage:
-#   ./scripts/alpine-rpi-qemu.sh make-image    # create alpine-rpi.img (single FAT32)
-#   ./scripts/alpine-rpi-qemu.sh populate      # fetch tarball, extract to p1, add DTB, write cmdline
-#   ./scripts/alpine-rpi-qemu.sh launch        # boot QEMU into diskless Alpine (live/installer)
+#   ./scripts/alpine-rpi-qemu.sh make-image       # create alpine-rpi.img (single FAT32)
+#   ./scripts/alpine-rpi-qemu.sh populate-boot    # fetch tarball, extract to p1, add DTB, write cmdline
+#   ./scripts/alpine-rpi-qemu.sh populate-config  # add the headless alpine apkovl and all relevant configs
+#   ./scripts/alpine-rpi-qemu.sh verify           #
+#   ./scripts/alpine-rpi-qemu.sh launch           # boot QEMU into diskless Alpine (live/installer)
+#   ./scripts/alpine-rpi-qemu.sh sdcard           #
+#   ./scripts/alpine-rpi-qemu.sh clean            #
+#
+# Examples:
 #   BOARD=pi3 ./scripts/alpine-rpi-qemu.sh all # do everything for Pi 3 model
 #
-# Inside the guest:
-#   setup-alpine
-#   lbu commit -d   # persist config to apkovl on p1
-#
 # Notes:
-# - Diskless mode (RAM root). Single FAT32 partition, no root= on cmdline.
 # - QEMU does not emulate Pi firmware, so we pass -kernel/-initrd/-dtb.
 
 set -euo pipefail
 
 # -------- Tunables --------
-IMG="${IMG:-alpine-rpi.img}"
+IMG="${IMG:-dist/alpine-rpi.img}"
 SIZE_GB="${SIZE_GB:-2}"              # Single FAT32 partition size
 BOARD="${BOARD:-pi4}"                 # pi4 | pi3
 ARCH="${ARCH:-aarch64}"
@@ -29,6 +30,15 @@ SSH_PORT="${SSH_PORT:-5022}"
 RAM_MB="${RAM_MB:-2048}"
 SMP="${SMP:-4}"
 BOOT_LABEL="${BOOT_LABEL:-APLNBOOT}"
+
+OVERLAY_SRC="${OVERLAY_SRC:-"https://raw.githubusercontent.com/macmpi/alpine-linux-headless-bootstrap/refs/heads/main/headless.apkovl.tar.gz"}"
+UNATTEND_SRC="${UNATTEND_SRC:-"etc/unattended.sh"}"
+AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
+ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
+
+typeset -a EXTRA_FILES
+EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
+
 
 # -------- Board mapping --------
 case "$BOARD" in
@@ -170,14 +180,6 @@ populate_boot() {
 # Populate the Alpine Pi headless installer files on the boot (FAT) partition.
 # Uses: with_p1 IMG cmd...
 #
-# Usage:
-#   populate_headless_config <IMG> \
-#     [--overlay <path|url>] \
-#     [--unattend <path>] \
-#     [--auth-keys <path>] \
-#     [--answers <path>] \
-#     [--extra <path> ...]
-#
 # Notes:
 # - If --overlay is omitted, downloads macmpi's headless.apkovl.tar.gz.
 # - If --unattend is provided, it is copied to /unattended.sh and chmod +x.
@@ -185,7 +187,7 @@ populate_boot() {
 # - If --answers is provided, it is copied to /answers.txt.
 # - You can repeat --extra to copy additional files to the boot root.
 # - Requires helpers: need, with_p1, loop_map, loop_unmap (you already have).
-_populate_headless_config() (
+_populate_config() (
   local overlay_src="$1"
   local unattend_src="$2"
   local auth_keys_src="$3"
@@ -241,46 +243,20 @@ _populate_headless_config() (
 )
 
 
-populate_headless_config() {
+populate_config() {
   need curl
   need install
   need awk
   need grep
+  need losetup
 
-  local overlay_src=       # file path or URL
-  local unattend_src=      # file path
-  local auth_keys_src=     # file path
-  local answers_src=       # file path
-  local -a extra_files=()  # array of paths to copy to / (boot root)
-
-  local default_overlay_url="https://raw.githubusercontent.com/macmpi/alpine-linux-headless-bootstrap/refs/heads/main/headless.apkovl.tar.gz"
-
-  # --- parse args ---
-  if [[ $# -lt 1 ]]; then
-    echo "Usage: populate_headless_boot <IMG> [--overlay <path|url>] [--unattend <path>] [--auth-keys <path>] [--answers <path>] [--extra <path> ...]" >&2
-    return 2
-  fi
-
-  shift 1
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --overlay) overlay_src="$2"; shift 2 ;;
-      --unattend) unattend_src="$2}"; shift 2 ;;
-      --auth-keys) auth_keys_src="$2"; shift 2 ;;
-      --answers) answers_src="$2"; shift 2 ;;
-      --extra) extra_files+=("$2"); shift 2 ;;
-      --) shift; break ;;
-      *) echo "populate_headless_config: unknown arg: $1" >&2; return 2 ;;
-    esac
-  done
-
-  # mount p1, run the commands to populate the file system, unmount
-  with_p1 "$IMG" _populate_headless_config \
-    "${overlay_src:-"$default_overlay_url"}" \
-    "${unattend_src:-"unattended.sh"}" \
-    "${auth_keys_src:-"authorized_keys"}" \
-    "${answers_src:-"answers.txt"}" \
-    "${extra_files[@]}"
+  # Mount p1, run the commands to populate the file system, unmount
+  with_p1 "$IMG" _populate_config \
+    "$OVERLAY_SRC" \
+    "$UNATTEND_SRC" \
+    "$AUTH_KEYS_SRC" \
+    "$ANSWERS_SRC" \
+    "${EXTRA_FILES[@]}"
 }
 
 
@@ -337,16 +313,34 @@ launch() {
 }
 
 
-all() { make-image; populate; populate_headless_config "$@"; launch; }
+sdcard() {
+  # TODO: Implement
+  :
+}
 
 
+clean() {
+  rm -vrf ./dist/*
+  echo "...done"
+}
+
+
+test_qemu() {
+  # TODO: Implement
+  :
+}
+
+
+# Main entry point
 case "${1:-help}" in
-  make-image)                 make-image ;;
-  populate-boot)              populate_boot ;;
-  populate-headless-config)   populate_headless_config "$@" ;;
-  verify)                     verify ;;
-  launch)                     launch ;;
-  all)                        all "$@" ;;
+  make-image)        make-image ;;
+  populate-boot)     populate_boot ;;
+  populate-config)   populate_config ;;
+  verify)            verify ;;
+  launch)            launch ;;
+  test)              test_qemu ;;
+  sdcard)            sdcard ;;
+  clean)             clean ;;
 
   # Provide help
   help|-h|--help)
