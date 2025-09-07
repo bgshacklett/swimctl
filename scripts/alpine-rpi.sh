@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
-# alpine-rpi-qemu.sh — Alpine RPi in QEMU (DISKLESS, single FAT32 partition)
+# alpine-rpi.sh — Alpine RPi in QEMU
 #
 # Usage:
-#   ./scripts/alpine-rpi-qemu.sh make-image       # create alpine-rpi.img (single FAT32)
-#   ./scripts/alpine-rpi-qemu.sh populate-boot    # fetch tarball, extract to p1, add DTB, write cmdline
-#   ./scripts/alpine-rpi-qemu.sh populate-config  # add the headless alpine apkovl and all relevant configs
-#   ./scripts/alpine-rpi-qemu.sh verify           #
-#   ./scripts/alpine-rpi-qemu.sh launch           # boot QEMU into diskless Alpine (live/installer)
-#   ./scripts/alpine-rpi-qemu.sh sdcard           #
-#   ./scripts/alpine-rpi-qemu.sh clean            #
+#   ./scripts/alpine-rpi.sh make-image       # create alpine-rpi.img (single FAT32)
+#   ./scripts/alpine-rpi.sh populate-boot    # fetch tarball, extract to p1, add DTB, write cmdline
+#   ./scripts/alpine-rpi.sh populate-config  # add the headless alpine apkovl and all relevant configs
+#   ./scripts/alpine-rpi.sh verify           #
+#   ./scripts/alpine-rpi.sh launch           # boot QEMU into diskless Alpine (live/installer)
+#   ./scripts/alpine-rpi.sh sdcard           #
+#   ./scripts/alpine-rpi.sh clean            #
 #
 # Examples:
-#   BOARD=pi3 ./scripts/alpine-rpi-qemu.sh all # do everything for Pi 3 model
+#   BOARD=pi3 ./scripts/alpine-rpi.sh all # do everything for Pi 3 model
 #
 # Notes:
 # - QEMU does not emulate Pi firmware, so we pass -kernel/-initrd/-dtb.

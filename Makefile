@@ -5,32 +5,32 @@
 
 .PHONY: image
 image:
-	@sudo -E scripts/alpine-rpi-qemu.sh make-image
+	@sudo -E scripts/alpine-rpi.sh make-image
 
 .PHONY: populate-boot
 populate-boot:
-	@sudo -E scripts/alpine-rpi-qemu.sh populate-boot
+	@sudo -E scripts/alpine-rpi.sh populate-boot
 
 .PHONY: populate-config
 populate-config:
-	@sudo -E scripts/alpine-rpi-qemu.sh populate-config
+	@sudo -E scripts/alpine-rpi.sh populate-config
 
 .PHONY: verify
 verify:
-	@scripts/alpine-rpi-qemu.sh verify
+	@scripts/alpine-rpi.sh verify
 
 .PHONY: launch
 launch:
-	@sudo -E scripts/alpine-rpi-qemu.sh launch
+	@sudo -E scripts/alpine-rpi.sh launch
 
 .PHONY: test
 test:
-	@scripts/alpine-rpi-qemu.sh test
+	@scripts/alpine-rpi.sh test
 
 .PHONY: sdcard
 sdcard:
-	@sudo -E scripts/alpine-rpi-qemu.sh sdcard
+	@sudo -E scripts/alpine-rpi.sh sdcard
 
 .PHONY: clean
 clean:
-	@scripts/alpine-rpi-qemu.sh clean
+	@scripts/alpine-rpi.sh clean
