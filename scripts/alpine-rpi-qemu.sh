@@ -35,10 +35,17 @@ OVERLAY_SRC="${OVERLAY_SRC:-"https://raw.githubusercontent.com/macmpi/alpine-lin
 UNATTEND_SRC="${UNATTEND_SRC:-"etc/unattended.sh"}"
 AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
 ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
+WPA_SUPPLICANT_SRC="${WPA_SUPPLICANT_SRC:-"etc/wpa_supplicant.conf"}"
 
 typeset -a EXTRA_FILES
 EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
 
+
+# Pull from ENV or set to empty string
+set -x
+WIFI_SSID=${WIFI_SSID:-""}
+WIFI_PASSWORD=${WIFI_PASSWORD:-""}
+set +x
 
 # -------- Board mapping --------
 case "$BOARD" in
@@ -192,6 +199,7 @@ _populate_config() (
   local unattend_src="$2"
   local auth_keys_src="$3"
   local answers_src="$4"
+  local wpa_supplicant_src="$5"
   local -a extra_files=("$@")
 
   local boot="/mnt/alpine-boot"
@@ -226,7 +234,13 @@ _populate_config() (
     install -m 0644 "$answers_src" "$boot/answers.txt"
   fi
 
-  # 5) any extra files (optional)
+  # 4) answers.txt (optional)
+  if [[ -n "$wpa_supplicant_src" ]]; then
+    echo "  - installing $wpa_supplicant_src"
+    install -m 0600 "$wpa_supplicant_src" "$boot/wpa_supplicant.conf"
+  fi
+
+  # 6) any extra files (optional)
   if [[ ${#extra_files[@]} -gt 0 ]]; then
     echo "  - copying extra file(s)"
     for f in "${extra_files[@]}"; do
@@ -250,12 +264,25 @@ populate_config() {
   need grep
   need losetup
 
+  set -x
+
+  echo $WIFI_SSID
+  echo $WIFI_PASSWORD
+
+  if [ -z "$WIFI_SSID" ]; then read -p "Enter WiFi SSID:" WIFI_SSID; fi
+  if [ -z "$WIFI_PASSWORD" ]; then read -p "Enter WiFi Password:" WIFI_PASSWORD; fi
+
+  export WIFI_SSID WIFI_PASSWORD
+  envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
+  set +x
+
   # Mount p1, run the commands to populate the file system, unmount
   with_p1 "$IMG" _populate_config \
     "$OVERLAY_SRC" \
     "$UNATTEND_SRC" \
     "$AUTH_KEYS_SRC" \
     "$ANSWERS_SRC" \
+    "$WPA_SUPPLICANT_SRC" \
     "${EXTRA_FILES[@]}"
 }
 
