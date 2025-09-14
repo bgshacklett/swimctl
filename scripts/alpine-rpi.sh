@@ -37,6 +37,7 @@ BOOT_LABEL="${BOOT_LABEL:-APLNBOOT}"
 
 OVERLAY_SRC="${OVERLAY_SRC:-"https://raw.githubusercontent.com/macmpi/alpine-linux-headless-bootstrap/refs/heads/main/headless.apkovl.tar.gz"}"
 UNATTEND_SRC="${UNATTEND_SRC:-"etc/unattended.sh"}"
+UNATTEND_LIB_SRC="${UNATTEND_LIB_SRC:-"etc/unattended.lib.sh"}"
 AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
 ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
 WPA_SUPPLICANT_SRC="${WPA_SUPPLICANT_SRC:-"etc/wpa_supplicant.conf"}"
@@ -238,9 +239,10 @@ populate_boot() {
 _populate_config() (
   local overlay_src="$1"
   local unattend_src="$2"
-  local auth_keys_src="$3"
-  local answers_src="$4"
-  local wpa_supplicant_src="$5"
+  local unattend_lib_src="$3"
+  local auth_keys_src="$4"
+  local answers_src="$5"
+  local wpa_supplicant_src="$6"
   local -a extra_files=("$@")
 
   local boot="/mnt/alpine-boot"
@@ -263,6 +265,10 @@ _populate_config() (
   if [[ -n "$unattend_src" ]]; then
     echo "- installing unattended.sh"
     install -vm 0755 "$unattend_src" "$boot/unattended.sh"
+  fi
+  if [[ -n "$unattend_lib_src" ]]; then
+    echo "- installing $unattend_lib_src"
+    install -vm 0755 "$unattend_lib_src" "$boot/unattended.lib.sh"
   fi
 
   # 3) authorized_keys (optional)
@@ -330,6 +336,7 @@ populate_config() {
   with_p1 "$IMG" _populate_config \
     "$OVERLAY_SRC" \
     "$UNATTEND_SRC" \
+    "$UNATTEND_LIB_SRC" \
     "$AUTH_KEYS_SRC" \
     "$ANSWERS_SRC" \
     "$WPA_SUPPLICANT_SRC" \

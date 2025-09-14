@@ -1,13 +1,20 @@
 #!/bin/sh
 
-log "Setting-up minimal environment"
+# shellcheck disable=SC3040 #  See: https://blog.toast.cafe/posix2024-xcu
+set -euo pipefail
+
+
+. "$BOOT/unattended.lib.sh"
+
+_logger "Setting-up minimal environment"
 
 # Retrieve WiFi config from wpa_supplicant.conf
-INTERFACESOPTS_SSID="$(grep '^\sssid=' wpa_supplicant.conf \
-											 | cut -d = f 2 \
+INTERFACESOPTS_SSID="$(grep '^\sssid=' "$BOOT/wpa_supplicant.conf" \
+											 | cut -d = -f 2 \
 											 | tr -d '"')"
 
-INTERFACESOPTS_PSK="$(grep '^\spsk=' wpa_supplicant.conf | cut -d = f 2)"
+INTERFACESOPTS_PSK="$(grep '^\spsk=' "$BOOT/wpa_supplicant.conf" \
+	                    | cut -d = -f 2)"
 
 
 cat <<-EOF > /tmp/ANSWERFILE
@@ -41,11 +48,11 @@ cat <<-EOF > /tmp/ANSWERFILE
 	# Do not create any user
 	USEROPTS=none
 
-	# No Openssh
+	# Install Openssh
 	SSHDOPTS="-c openssh"
 
 	# Use openntpd
-	NTPOPTS="chrony"
+	NTPOPTS="-c openntpd"
 
 	# No disk install (diskless)
 	DISKOPTS=none
@@ -65,3 +72,6 @@ cat <<-EOF > /tmp/ANSWERFILE
 
 	APKCACHEOPTS="\$LBUOPTS/cache"
 	EOF
+
+
+SSH_CONNECTION="FAKE" setup-alpine -q -f /tmp/ANSWERFILE
