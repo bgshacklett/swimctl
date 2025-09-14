@@ -3,5 +3,9 @@ dist/*
 build/*
 **/*.orig
 cache/*
+
 etc/*
 !etc/unattended.sh
+!etc/unattended.exec.d
+!**/README.md
+

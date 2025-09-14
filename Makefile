@@ -19,13 +19,16 @@ populate-config:
 verify:
 	@scripts/alpine-rpi.sh verify
 
+.PHONY: qemu
+qemu: image populate-boot populate-config
+
 .PHONY: launch
 launch:
 	@sudo -E scripts/alpine-rpi.sh launch
 
 .PHONY: test
 test:
-	@scripts/alpine-rpi.sh test
+	@sudo scripts/alpine-rpi.sh test
 
 .PHONY: sdcard
 sdcard:

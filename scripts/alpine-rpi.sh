@@ -18,8 +18,12 @@
 
 set -euo pipefail
 
+FETCH_CACHE_APP=swimctl-builder
+export FETCH_CACHE_APP
+
 # -------- Tunables --------
 IMG="${IMG:-dist/alpine-rpi.img}"
+IMG_MOUNT_PATH="${IMG_MOUNT_PATH:-/mnt/alpine-boot}"
 SIZE_GB="${SIZE_GB:-2}"              # Single FAT32 partition size
 BOARD="${BOARD:-pi4}"                 # pi4 | pi3
 ARCH="${ARCH:-aarch64}"
@@ -42,10 +46,8 @@ EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
 
 
 # Pull from ENV or set to empty string
-set -x
 WIFI_SSID=${WIFI_SSID:-""}
 WIFI_PASSWORD=${WIFI_PASSWORD:-""}
-set +x
 
 # -------- Board mapping --------
 case "$BOARD" in
@@ -85,32 +87,71 @@ loop_unmap() {
 }
 
 with_p1() { # with_p1 IMG cmd...
+  # Provides LOOP_MOUNT environment variable which can be used to find the
+  # appropriate mount point dynamically, rather than assuming a specific path.
   local img="$1"; shift
-  local loop base p1
+  local loop base p1 mount_path
   need mount; need umount
   loop="$(loop_map "$img")"
   base="$(basename "$loop")"
   p1="/dev/mapper/${base}p1"
-  sudo mkdir -p /mnt/alpine-boot
-  sudo mount "$p1" /mnt/alpine-boot
-  LOOP_BASENAME="$base" "$@"
+  mount_path="${IMG_MOUNT_PATH:-"/mnt/alpine-boot"}"
+  sudo mkdir -p "$mount_path"
+  sudo mount "$p1" "$mount_path"
+  LOOP_BASENAME="$base" LOOP_MOUNT="$mount_path" "$@"
   local rc=$?
-  sudo umount /mnt/alpine-boot || true
+  sudo umount "$mount_path" || true
   loop_unmap "$loop"
   return $rc
 }
 
 fetch_atomically() { # fetch_atomically URL OUTFILE
-  local url="$1" out="$2" tmp
+  local url="$1" out="$2"
+  local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/${FETCH_CACHE_APP:-fetch-cache}"
+  local key cache_path tmp tmp2
+
   need wget
-  tmp="$(mktemp "${out}.XXXXXX")"
-  if ! wget -S --progress=dot:giga -O "$tmp" "$url"; then
-    rm -f "$tmp"; echo "Download failed: $url"; return 1
+
+  mkdir -p "$cache_root" || { echo "Cannot create cache dir: $cache_root" >&2; return 1; }
+  key="$(printf '%s' "$url" | sha256sum | awk '{print $1}')"
+  cache_path="$cache_root/$key"
+
+  # If cached and non-empty, copy it out atomically.
+  if [[ -s "$cache_path" ]]; then
+    tmp2="$(mktemp "${out}.XXXXXX")" || return 1
+    if ! cp -f -- "$cache_path" "$tmp2"; then
+      rm -f -- "$tmp2"; echo "Cache copy failed: $url" >&2; return 1
+    fi
+    mv -f -- "$tmp2" "$out"
+    return 0
+  fi
+
+  # Not cached (or empty) — fetch to a temp file.
+  tmp="$(mktemp "${cache_path}.XXXXXX")" || return 1
+  if ! wget -S --progress=dot:giga -O "$tmp" -- "$url"; then
+    rm -f -- "$tmp"; echo "Download failed: $url" >&2; return 1
   fi
   if [[ ! -s "$tmp" ]]; then
-    rm -f "$tmp"; echo "Empty download: $url"; return 1
+    rm -f -- "$tmp"; echo "Empty download: $url" >&2; return 1
   fi
-  mv -f "$tmp" "$out"
+
+  # Try to install into cache atomically. If another process beat us, just use theirs.
+  if mv -f -- "$tmp" "$cache_path"; then
+    : # cached successfully
+  else
+    # Fallback: if move failed for some reason, just ensure we don't leak the temp
+    rm -f -- "$tmp"
+  fi
+
+  # Write the final outfile atomically from the (now present) cache.
+  if [[ ! -s "$cache_path" ]]; then
+    echo "Cache missing after fetch: $url" >&2; return 1
+  fi
+  tmp2="$(mktemp "${out}.XXXXXX")" || return 1
+  if ! cp -f -- "$cache_path" "$tmp2"; then
+    rm -f -- "$tmp2"; echo "Cache copy failed: $url" >&2; return 1
+  fi
+  mv -f -- "$tmp2" "$out"
 }
 
 resolve_tarball_url() {
@@ -209,40 +250,57 @@ _populate_config() (
 
   # 1) headless.apkovl.tar.gz
   if [[ "$overlay_src" =~ ^https?:// ]]; then
-    echo "  - downloading overlay from URL"
-    curl -L --fail --retry 3 -o "$boot/headless.apkovl.tar.gz" "$overlay_src"
+    echo "- downloading overlay from URL"
+    # curl -L --fail --retry 3 -o "$boot/headless.apkovl.tar.gz" "$overlay_src"
+    fetch_atomically "$overlay_src" "$boot/headless.apkovl.tar.gz"
+
   else
-    echo "  - copying overlay from file"
-    install -m 0644 "$overlay_src" "$boot/headless.apkovl.tar.gz"
+    echo "- copying overlay from file"
+    install -vm 0644 "$overlay_src" "$boot/headless.apkovl.tar.gz"
   fi
 
   # 2) unattend.sh -> /unattended.sh (executable)
   if [[ -n "$unattend_src" ]]; then
-    echo "  - installing unattended.sh"
-    install -m 0755 "$unattend_src" "$boot/unattended.sh"
+    echo "- installing unattended.sh"
+    install -vm 0755 "$unattend_src" "$boot/unattended.sh"
   fi
 
   # 3) authorized_keys (optional)
   if [[ -n "$auth_keys_src" ]]; then
-    echo "  - installing authorized_keys"
-    install -m 0644 "$auth_keys_src" "$boot/authorized_keys"
+    echo "- installing authorized_keys"
+    install -vm 0644 "$auth_keys_src" "$boot/authorized_keys"
   fi
 
   # 4) answers.txt (optional)
   if [[ -n "$answers_src" ]]; then
-    echo "  - installing answers.txt"
-    install -m 0644 "$answers_src" "$boot/answers.txt"
+    echo "- installing answers.txt"
+    install -vm 0644 "$answers_src" "$boot/answers.txt"
   fi
 
   # 4) answers.txt (optional)
   if [[ -n "$wpa_supplicant_src" ]]; then
-    echo "  - installing $wpa_supplicant_src"
-    install -m 0600 "$wpa_supplicant_src" "$boot/wpa_supplicant.conf"
+    echo "- installing $wpa_supplicant_src"
+    install -vm 0600 "$wpa_supplicant_src" "$boot/wpa_supplicant.conf"
   fi
+
+  # 5) *.conf.d and *.exec.d directories
+  echo "- copying unattended config files..."
+  mkdir -p "$boot/unattended.conf.d"
+  find "etc/unattended.conf.d" \
+    -type f \
+    \( -name '*.any.conf' -o -name '*.qemu.conf' \) \
+    -exec install -vm 0600 {} "$boot/unattended.conf.d/" \;
+
+  echo "- copying unattended script parts..."
+  mkdir -p "$boot/unattended.exec.d"
+  find "etc/unattended.exec.d" \
+    -type f \
+    \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
+    -exec install -vm 0755 {} "$boot/unattended.exec.d/" \;
 
   # 6) any extra files (optional)
   if [[ ${#extra_files[@]} -gt 0 ]]; then
-    echo "  - copying extra file(s)"
+    echo "- copying extra file(s)"
     for f in "${extra_files[@]}"; do
       [[ -f "$f" ]] || { echo "    ! not a file: $f" >&2; continue; }
       echo "    · $(basename "$f")"
@@ -253,10 +311,8 @@ _populate_config() (
   sync
   echo "✓ Boot partition populated."
   echo "  Contents:"
-  (cd "$boot" && ls -lah)
+  (cd "$boot" && ls -lahR)
 )
-
-
 populate_config() {
   need curl
   need install
@@ -264,17 +320,11 @@ populate_config() {
   need grep
   need losetup
 
-  set -x
-
-  echo $WIFI_SSID
-  echo $WIFI_PASSWORD
-
   if [ -z "$WIFI_SSID" ]; then read -p "Enter WiFi SSID:" WIFI_SSID; fi
   if [ -z "$WIFI_PASSWORD" ]; then read -p "Enter WiFi Password:" WIFI_PASSWORD; fi
 
   export WIFI_SSID WIFI_PASSWORD
   envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
-  set +x
 
   # Mount p1, run the commands to populate the file system, unmount
   with_p1 "$IMG" _populate_config \
@@ -352,9 +402,37 @@ clean() {
 }
 
 
+_check_files_exist() {
+  status=0
+
+  for file in "$@"; do
+    if [[ ! -e "$file" ]]; then
+      echo "❌ Missing: $file"
+      status=1
+    elif [[ ! -s "$file" ]]; then
+      echo "❌ Empty: $file"
+      status=1
+    else
+      echo "✅ $file"
+    fi
+  done
+
+  return "$status"
+}
+
+_test_qemu() (
+  pushd "${LOOP_MOUNT}" > /dev/null
+
+  _check_files_exist \
+    wpa_supplicant.conf
+
+  ls -alhR
+
+  popd > /dev/null
+)
 test_qemu() {
   # TODO: Implement
-  :
+  with_p1 "$IMG" _test_qemu
 }
 
 
