@@ -31,7 +31,7 @@ BRANCH="${BRANCH:-latest-stable}"     # latest-stable | edge
 REPO_BASE="${REPO_BASE:-https://dl-cdn.alpinelinux.org/alpine}"
 
 SSH_PORT="${SSH_PORT:-5022}"
-RAM_MB="${RAM_MB:-2048}"
+# RAM_MB="${RAM_MB:-2048}"
 SMP="${SMP:-4}"
 BOOT_LABEL="${BOOT_LABEL:-APLNBOOT}"
 
@@ -56,12 +56,14 @@ case "$BOARD" in
     DTB_FILE="${DTB_FILE:-bcm2711-rpi-4-b.dtb}"
     QEMU_MACHINE="raspi4b"
     QEMU_CPU="cortex-a72"
+    RAM_MB="${RAM_MB:-2048}"
     EARLYCON="${EARLYCON:-earlycon=pl011,mmio32,0xfe201000 keep_bootcon}"
     ;;
   pi3)
     DTB_FILE="${DTB_FILE:-bcm2710-rpi-3-b-plus.dtb}"
     QEMU_MACHINE="raspi3b"
     QEMU_CPU="cortex-a53"
+    RAM_MB="${RAM_MB:-1024}"
     EARLYCON="${EARLYCON:-earlycon=pl011,mmio32,0x3f201000 keep_bootcon}"
     ;;
   *) echo "Unsupported BOARD=$BOARD (use pi4 or pi3)"; exit 2;;
