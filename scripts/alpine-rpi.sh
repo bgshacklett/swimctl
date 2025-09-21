@@ -331,6 +331,11 @@ populate_config() {
   if [ -z "$WIFI_SSID" ]; then read -p "Enter WiFi SSID:" WIFI_SSID; fi
   if [ -z "$WIFI_PASSWORD" ]; then read -p "Enter WiFi Password:" WIFI_PASSWORD; fi
 
+  if [[ ${#WIFI_PASSWORD} -lt 8 ]]; then
+    echo "WIFI Password must be at least 8 characters long."
+    exit 1
+  fi
+
   export WIFI_SSID WIFI_PASSWORD
   envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
 
@@ -388,7 +393,7 @@ launch() {
     -kernel "$TMP/kernel" \
     -initrd "$TMP/initrd" \
     -dtb "$TMP/dtb" \
-    -drive "if=sd,file=$IMG,index=0,format=raw" \
+    -drive "if=sd,file=$IMG,index=0,cache=directsync" \
     -append "$CMDLINE" \
     -usb \
     -device "usb-net,netdev=net0" \
