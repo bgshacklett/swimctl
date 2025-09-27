@@ -256,29 +256,27 @@ _populate_config() (
   # 1) headless.apkovl.tar.gz
   if [[ "$overlay_src" =~ ^https?:// ]]; then
     echo "- downloading overlay from URL"
-    # curl -L --fail --retry 3 -o "$boot/headless.apkovl.tar.gz" "$overlay_src"
     fetch_atomically "$overlay_src" "$boot/headless.apkovl.tar.gz"
-
   else
     echo "- copying overlay from file"
     install -vm 0644 "$overlay_src" "$boot/headless.apkovl.tar.gz"
   fi
 
   # 2) /pre-network.d hook scripts
-  echo "- copying unattended script parts..."
+  echo "- copying pre-network hooks..."
   mkdir -p "$boot/pre-network.d"
   find "$pre_network_src" \
     -type f \
     \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
     -exec install -vm 0755 {} "$boot/pre-network.d/" \;
 
-  # 3) /unattended.sh (executable)
+  # 3) /unattended.sh and library
   if [[ -n "$unattend_src" ]]; then
     echo "- installing unattended.sh"
     install -vm 0755 "$unattend_src" "$boot/unattended.sh"
   fi
   if [[ -n "$unattend_lib_src" ]]; then
-    echo "- installing $unattend_lib_src"
+    echo "- installing $(basename "$unattend_lib_src")"
     install -vm 0755 "$unattend_lib_src" "$boot/unattended.lib.sh"
   fi
 
@@ -294,13 +292,13 @@ _populate_config() (
     install -vm 0644 "$answers_src" "$boot/answers.txt"
   fi
 
-  # 6) answers.txt (optional)
+  # 6) wpa_supplicant.conf (optional)
   if [[ -n "$wpa_supplicant_src" ]]; then
-    echo "- installing $wpa_supplicant_src"
+    echo "- installing $(basename "$wpa_supplicant_src")"
     install -vm 0600 "$wpa_supplicant_src" "$boot/wpa_supplicant.conf"
   fi
 
-  # 7) *.conf.d and *.exec.d directories
+  # 7) unattended.conf.d and unattended.exec.d
   echo "- copying unattended config files..."
   mkdir -p "$boot/unattended.conf.d"
   find "etc/unattended.conf.d" \
@@ -321,7 +319,7 @@ _populate_config() (
     for f in "${extra_files[@]}"; do
       [[ -f "$f" ]] || { echo "    ! not a file: $f" >&2; continue; }
       echo "    · $(basename "$f")"
-      install -m 0644 "$f" "$boot/$(basename "$f")"
+      install -vm 0644 "$f" "$boot/$(basename "$f")"
     done
   fi
 
@@ -459,7 +457,6 @@ _test_qemu() (
   popd > /dev/null
 )
 test_qemu() {
-  # TODO: Implement
   with_p1 "$IMG" _test_qemu
 }
 
