@@ -25,7 +25,7 @@ export FETCH_CACHE_APP
 IMG="${IMG:-dist/alpine-rpi.img}"
 IMG_MOUNT_PATH="${IMG_MOUNT_PATH:-/mnt/alpine-boot}"
 SIZE_GB="${SIZE_GB:-2}"              # Single FAT32 partition size
-BOARD="${BOARD:-pi4}"                 # pi4 | pi3
+BOARD="${BOARD:-pi3}"                 # pi4 | pi3
 ARCH="${ARCH:-aarch64}"
 BRANCH="${BRANCH:-latest-stable}"     # latest-stable | edge
 REPO_BASE="${REPO_BASE:-https://dl-cdn.alpinelinux.org/alpine}"
