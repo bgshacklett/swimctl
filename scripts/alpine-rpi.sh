@@ -248,7 +248,7 @@ _populate_config() (
   local wpa_supplicant_src="$7"
   local -a extra_files=("$@")
 
-  local boot="/mnt/alpine-boot"
+  local boot="$BOOT_MNT"
   [[ -d "$boot" ]] || { echo "boot mountpoint missing: $boot" >&2; return 1; }
 
   echo "→ Populating $boot with unattended configuration"
@@ -351,6 +351,7 @@ populate_config() {
   export WIFI_SSID WIFI_PASSWORD
   envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
 
+  BOOT_MNT="$IMG_MOUNT_PATH"
   # Mount p1, run the commands to populate the file system, unmount
   with_p1 "$IMG" _populate_config \
     "$OVERLAY_SRC" \
