@@ -236,8 +236,6 @@ populate_boot() {
 # - If --unattend is provided, it is copied to /unattended.sh and chmod +x.
 # - If --auth-keys is provided, it is copied to /authorized_keys.
 # - If --answers is provided, it is copied to /answers.txt.
-# - You can repeat --extra to copy additional files to the boot root.
-# - Requires helpers: need, with_p1, loop_map, loop_unmap (you already have).
 _populate_config() (
   local overlay_src="$1"
   local unattend_src="$2"
