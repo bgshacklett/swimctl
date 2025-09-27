@@ -38,6 +38,7 @@ BOOT_LABEL="${BOOT_LABEL:-APLNBOOT}"
 OVERLAY_SRC="${OVERLAY_SRC:-"https://raw.githubusercontent.com/macmpi/alpine-linux-headless-bootstrap/refs/heads/main/headless.apkovl.tar.gz"}"
 UNATTEND_SRC="${UNATTEND_SRC:-"etc/unattended.sh"}"
 UNATTEND_LIB_SRC="${UNATTEND_LIB_SRC:-"etc/unattended.lib.sh"}"
+PRE_NETWORK_SRC="${PRE_NETWORK_SRC:-"etc/pre-network.d/"}"
 AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
 ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
 WPA_SUPPLICANT_SRC="${WPA_SUPPLICANT_SRC:-"etc/wpa_supplicant.conf"}"
@@ -242,9 +243,10 @@ _populate_config() (
   local overlay_src="$1"
   local unattend_src="$2"
   local unattend_lib_src="$3"
-  local auth_keys_src="$4"
-  local answers_src="$5"
-  local wpa_supplicant_src="$6"
+  local pre_network_src="$4"
+  local auth_keys_src="$5"
+  local answers_src="$6"
+  local wpa_supplicant_src="$7"
   local -a extra_files=("$@")
 
   local boot="/mnt/alpine-boot"
@@ -263,7 +265,15 @@ _populate_config() (
     install -vm 0644 "$overlay_src" "$boot/headless.apkovl.tar.gz"
   fi
 
-  # 2) unattend.sh -> /unattended.sh (executable)
+  # 2) /pre-network.d hook scripts
+  echo "- copying unattended script parts..."
+  mkdir -p "$boot/pre-network.d"
+  find "$pre_network_src" \
+    -type f \
+    \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
+    -exec install -vm 0755 {} "$boot/pre-network.d/" \;
+
+  # 3) /unattended.sh (executable)
   if [[ -n "$unattend_src" ]]; then
     echo "- installing unattended.sh"
     install -vm 0755 "$unattend_src" "$boot/unattended.sh"
@@ -273,25 +283,25 @@ _populate_config() (
     install -vm 0755 "$unattend_lib_src" "$boot/unattended.lib.sh"
   fi
 
-  # 3) authorized_keys (optional)
+  # 4) authorized_keys (optional)
   if [[ -n "$auth_keys_src" ]]; then
     echo "- installing authorized_keys"
     install -vm 0644 "$auth_keys_src" "$boot/authorized_keys"
   fi
 
-  # 4) answers.txt (optional)
+  # 5) answers.txt (optional)
   if [[ -n "$answers_src" ]]; then
     echo "- installing answers.txt"
     install -vm 0644 "$answers_src" "$boot/answers.txt"
   fi
 
-  # 4) answers.txt (optional)
+  # 6) answers.txt (optional)
   if [[ -n "$wpa_supplicant_src" ]]; then
     echo "- installing $wpa_supplicant_src"
     install -vm 0600 "$wpa_supplicant_src" "$boot/wpa_supplicant.conf"
   fi
 
-  # 5) *.conf.d and *.exec.d directories
+  # 7) *.conf.d and *.exec.d directories
   echo "- copying unattended config files..."
   mkdir -p "$boot/unattended.conf.d"
   find "etc/unattended.conf.d" \
@@ -306,7 +316,7 @@ _populate_config() (
     \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
     -exec install -vm 0755 {} "$boot/unattended.exec.d/" \;
 
-  # 6) any extra files (optional)
+  # 8) any extra files (optional)
   if [[ ${#extra_files[@]} -gt 0 ]]; then
     echo "- copying extra file(s)"
     for f in "${extra_files[@]}"; do
@@ -315,6 +325,9 @@ _populate_config() (
       install -m 0644 "$f" "$boot/$(basename "$f")"
     done
   fi
+
+  # 9) Place _tst_version opt-out file.
+  touch "$boot/opt-out"
 
   sync
   echo "✓ Boot partition populated."
@@ -344,6 +357,7 @@ populate_config() {
     "$OVERLAY_SRC" \
     "$UNATTEND_SRC" \
     "$UNATTEND_LIB_SRC" \
+    "$PRE_NETWORK_SRC" \
     "$AUTH_KEYS_SRC" \
     "$ANSWERS_SRC" \
     "$WPA_SUPPLICANT_SRC" \

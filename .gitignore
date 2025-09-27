@@ -5,6 +5,7 @@ build/*
 cache/*
 
 etc/*
+!etc/pre-network.d
 !etc/unattended.sh
 !etc/unattended.exec.d
 !**/README.md

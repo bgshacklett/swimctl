@@ -3,7 +3,7 @@
 # shellcheck disable=SC3040 #  See: https://blog.toast.cafe/posix2024-xcu
 set -euo pipefail
 
-
+# shellcheck source=etc/unattended.lib.sh
 . "$BOOT/unattended.lib.sh"
 
 _logger "Setting-up minimal environment"

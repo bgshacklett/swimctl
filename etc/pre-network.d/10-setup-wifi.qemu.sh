@@ -1,6 +1,46 @@
 #!/bin/sh
+# shellcheck shell=dash
 
-. "$BOOT/unattended.lib.sh"
+# shellcheck source=etc/unattended.lib.sh
+. "$OVLPATH/unattended.lib.sh"
+
+
+init_pre_setup_networking() {
+set -x
+dmesg | grep -E -i 'usb|cdc|rndis|eth'
+lsmod | grep -E 'usbnet|cdc_ether|cdc_subset|rndis_host' || true
+modprobe usbnet cdc_ether cdc_subset rndis_host  # harmless if already present
+
+
+# Set up initial network connectivity to retrieve required packages
+ip link show
+ip link set usb0 up
+
+# continues only if a lease was obtained
+udhcpc -i usb0 -n -q -t 5 -T 3
+
+set +x
+}
+
+
+setup_prereqs() {
+set -x
+ntpd -n -q -p pool.ntp.org
+date -u    # sanity-check it's roughly correct now
+
+# temporarily point to HTTP so we can install CA certs
+echo 'http://dl-cdn.alpinelinux.org/alpine/latest-stable/main' >/etc/apk/repositories
+
+apk update
+apk add ca-certificates-bundle
+
+# ensure BusyBox sees the right file (usually created by the pkg already)
+ls -l /etc/ssl/cert.pem /etc/ssl/certs/ca-certificates.crt
+# if /etc/ssl/cert.pem is missing for some reason:
+ln -sf /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem
+
+set +x
+}
 
 
 wait_for_wpa() { # iface timeout
@@ -22,6 +62,8 @@ wait_for_wpa() { # iface timeout
 
 
 set -x
+init_pre_setup_networking
+setup_prereqs
 # ################################
 # Setup wifi hardware simulation #
 # ################################
@@ -67,29 +109,14 @@ AP_PHY="$(basename "$(readlink -f "/sys/class/net/$AP_WLAN/phy80211")")"
 iw phy "$AP_PHY" set netns name ap
 
 
-/sbin/ip netns exec ap /bin/sh -xc ". $BOOT/unattended.lib.sh; config_sim_ap $IP"
+/sbin/ip netns exec ap /bin/sh -xc ". $OVLPATH/unattended.lib.sh; config_sim_ap $IP $OVLPATH"
 $IP netns exec ap $IP -br link | sed 's/^/ ap : /'
 
 
 $IP link set "$STA_WLAN" up
-install -m600 "$BOOT"/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant.conf
-rc-service wpa_supplicant restart
+install -m600 "$OVLPATH/wpa_supplicant.conf" /etc/wpa_supplicant/wpa_supplicant.conf
+# rc-service wpa_supplicant restart
 
-if wait_for_wpa "$STA_WLAN" 20; then
-		udhcpc -i "$STA_WLAN" -n -q -t 5 -T 3
-else
-    echo "failed to authenticate"
-fi
-
-$IP -br link | sed 's/^/root: /'
-
-
-# Optional smoke cheks
-ping -c1 -W1 10.23.0.1 >/dev/null 2>&1 || true
-ping -c1 -W1 1.1.1.1   >/dev/null 2>&1 || true
-
-log "hwsim up: STA (root ns, wlan1) ↔ AP (ap ns, wlan0) with NAT via usb0."
-
-
+_logger "hwsim up: STA (root ns, wlan1) ↔ AP (ap ns, wlan0) with NAT via usb0."
 
 set +x
