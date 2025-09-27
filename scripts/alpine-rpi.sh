@@ -43,13 +43,12 @@ AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
 ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
 WPA_SUPPLICANT_SRC="${WPA_SUPPLICANT_SRC:-"etc/wpa_supplicant.conf"}"
 
+WIFI_SSID=${WIFI_SSID:-""}
+WIFI_PASSWORD=${WIFI_PASSWORD:-""}
+
 typeset -a EXTRA_FILES
 EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
 
-
-# Pull from ENV or set to empty string
-WIFI_SSID=${WIFI_SSID:-""}
-WIFI_PASSWORD=${WIFI_PASSWORD:-""}
 
 # -------- Board mapping --------
 case "$BOARD" in
