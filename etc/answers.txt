@@ -1,0 +1,31 @@
+# Answer file is run through envsubst. Standard POSIX style variables will
+# be replaced if available in the environment.
+
+KEYMAPOPTS="us us"
+
+# Keep hostname
+HOSTNAMEOPTS="swimctl-qemu"
+
+# Set device manager to mdev
+DEVDOPTS=mdev
+
+# Contents of /etc/network/interfaces
+# We've tested WiFi and the wpa_supplicant.conf config in the initial setup.
+# Configure usb0 to enable direct network reachability on subsequent boots.
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto usb0
+iface usb0 inet dhcp"
+
+TIMEZONEOPTS="-z UTC"
+
+# Add first mirror (CDN)
+APKREPOSOPTS="-1"
+
+# No disk install (diskless)
+DISKOPTS=none
+
+# Set LBUOPTS and APKCACHEOPTS from install environment
+LBUOPTS="${LBUOPTS}"
+APKCACHEOPTS="$LBUOPTS/cache"
