@@ -49,6 +49,12 @@ WIFI_PASSWORD=${WIFI_PASSWORD:-""}
 typeset -a EXTRA_FILES
 EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
 
+# TARGET controls which file variants are copied, and to what kind of media:
+#   export TARGET=qemu  # for emulation (default)
+#   export TARGET=rpi   # for real hardware
+# Files are matched as: *.any.* and *.<TARGET>.*
+TARGET="${TARGET:=qemu}"  # Assume qemu unless overridden
+
 
 # -------- Board mapping --------
 case "$BOARD" in
@@ -89,7 +95,7 @@ loop_unmap() {
   sudo losetup -d "$loop"
 }
 
-with_p1() { # with_p1 IMG cmd...
+_with_p1() { # _with_p1 IMG cmd...
   # Provides LOOP_MOUNT environment variable which can be used to find the
   # appropriate mount point dynamically, rather than assuming a specific path.
   local img="$1"; shift
@@ -106,6 +112,9 @@ with_p1() { # with_p1 IMG cmd...
   sudo umount "$mount_path" || true
   loop_unmap "$loop"
   return $rc
+}
+with_p1() {
+  _with_p1 "$@"
 }
 
 fetch_atomically() { # fetch_atomically URL OUTFILE
@@ -236,20 +245,25 @@ populate_boot() {
 # - If --unattend is provided, it is copied to /unattended.sh and chmod +x.
 # - If --auth-keys is provided, it is copied to /authorized_keys.
 # - If --answers is provided, it is copied to /answers.txt.
+# - Files are matched as: *.any.* and *.<TARGET>.*
+# - $target controls which file variants are copied:
+#     export TARGET=rpi   # for real hardware (default)
+#     export TARGET=qemu  # for emulation
 _populate_config() (
-  local overlay_src="$1"
-  local unattend_src="$2"
-  local unattend_lib_src="$3"
-  local pre_network_src="$4"
-  local auth_keys_src="$5"
-  local answers_src="$6"
-  local wpa_supplicant_src="$7"
+  local target="$1"
+  local overlay_src="$2"
+  local unattend_src="$3"
+  local unattend_lib_src="$4"
+  local pre_network_src="$5"
+  local auth_keys_src="$6"
+  local answers_src="$7"
+  local wpa_supplicant_src="$8"
   local -a extra_files=("$@")
 
   local boot="$BOOT_MNT"
   [[ -d "$boot" ]] || { echo "boot mountpoint missing: $boot" >&2; return 1; }
 
-  echo "→ Populating $boot with unattended configuration"
+  echo "→ Populating $boot with unattended configuration (target=$target)"
 
   # 1) headless.apkovl.tar.gz
   if [[ "$overlay_src" =~ ^https?:// ]]; then
@@ -263,9 +277,8 @@ _populate_config() (
   # 2) /pre-network.d hook scripts
   echo "- copying pre-network hooks..."
   mkdir -p "$boot/pre-network.d"
-  find "$pre_network_src" \
-    -type f \
-    \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
+  find "$pre_network_src" -type f \
+    \( -name '*.any.sh' -o -name "*.${target}.sh" \) \
     -exec install -vm 0755 {} "$boot/pre-network.d/" \;
 
   # 3) /unattended.sh and library
@@ -299,16 +312,14 @@ _populate_config() (
   # 7) unattended.conf.d and unattended.exec.d
   echo "- copying unattended config files..."
   mkdir -p "$boot/unattended.conf.d"
-  find "etc/unattended.conf.d" \
-    -type f \
-    \( -name '*.any.conf' -o -name '*.qemu.conf' \) \
+  find "etc/unattended.conf.d" -type f \
+    \( -name '*.any.conf' -o -name "*.${target}.conf" \) \
     -exec install -vm 0600 {} "$boot/unattended.conf.d/" \;
 
   echo "- copying unattended script parts..."
   mkdir -p "$boot/unattended.exec.d"
-  find "etc/unattended.exec.d" \
-    -type f \
-    \( -name '*.any.sh' -o -name '*.qemu.sh' \) \
+  find "etc/unattended.exec.d" -type f \
+    \( -name '*.any.sh' -o -name "*.${target}.sh" \) \
     -exec install -vm 0755 {} "$boot/unattended.exec.d/" \;
 
   # 8) any extra files (optional)
@@ -348,16 +359,20 @@ populate_config() {
   envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
 
   BOOT_MNT="$IMG_MOUNT_PATH"
-  # Mount p1, run the commands to populate the file system, unmount
-  with_p1 "$IMG" _populate_config \
-    "$OVERLAY_SRC" \
-    "$UNATTEND_SRC" \
-    "$UNATTEND_LIB_SRC" \
-    "$PRE_NETWORK_SRC" \
-    "$AUTH_KEYS_SRC" \
-    "$ANSWERS_SRC" \
-    "$WPA_SUPPLICANT_SRC" \
+
+  config_spec=(
+    "$TARGET"
+    "$OVERLAY_SRC"
+    "$UNATTEND_SRC"
+    "$UNATTEND_LIB_SRC"
+    "$PRE_NETWORK_SRC"
+    "$AUTH_KEYS_SRC"
+    "$ANSWERS_SRC"
+    "$WPA_SUPPLICANT_SRC"
     "${EXTRA_FILES[@]}"
+  )
+
+  with_p1 "$IMG" _populate_config "${config_spec[@]}"
 }
 
 
