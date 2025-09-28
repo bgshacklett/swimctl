@@ -347,8 +347,8 @@ populate_config() {
   need grep
   need losetup
 
-  if [ -z "$WIFI_SSID" ]; then read -p "Enter WiFi SSID:" WIFI_SSID; fi
-  if [ -z "$WIFI_PASSWORD" ]; then read -p "Enter WiFi Password:" WIFI_PASSWORD; fi
+  if [ -z "$WIFI_SSID" ]; then read -rp "Enter WiFi SSID:" WIFI_SSID; fi
+  if [ -z "$WIFI_PASSWORD" ]; then read -rp "Enter WiFi Password:" WIFI_PASSWORD; fi
 
   if [[ ${#WIFI_PASSWORD} -lt 8 ]]; then
     echo "WIFI Password must be at least 8 characters long."
