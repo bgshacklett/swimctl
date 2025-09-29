@@ -170,7 +170,7 @@ resolve_tarball_url() {
   # Find alpine-rpi-*-aarch64.tar.gz in the release directory index
   need wget
   local idx url
-  idx="$(wget -qO- "${REL_DIR}")" || return 1
+  idx="$(wget -vO- "${REL_DIR}")" || return 1
   url="$(printf "%s\n" "$idx" | grep -Eo 'alpine-rpi-[^"]*-aarch64\.tar\.gz' | head -n1)"
   [[ -n "$url" ]] || { echo "Could not find alpine-rpi-*-aarch64.tar.gz in ${REL_DIR}"; return 1; }
   echo "${REL_DIR}${url}"
