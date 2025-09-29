@@ -37,6 +37,7 @@ need() {
 file_has() { [ -f "$1" ] && grep -q "$2" "$1"; }
 
 ensure_user() {
+  _logger "Setting up user '$ADMIN_USER'"
   if id "$ADMIN_USER" >/dev/null 2>&1; then
     _logger "User '$ADMIN_USER' already exists."
   else
@@ -52,12 +53,21 @@ ensure_user() {
     else
       adduser -D -s /bin/ash -g "$ADMIN_USER" "$ADMIN_USER"
     fi
-    # lock admin password by default (we use key auth)
-    passwd -l "$ADMIN_USER" >/dev/null 2>&1 || true
+    ## 1) Inspect what’s in shadow
+    grep '^admin:' /etc/shadow | cut -d: -f1-2
+    # If the 2nd field starts with '!' or '*' it's locked.
+
+    # 2) Unlock the account and set a random (unknown) password hash
+    #    (so the entry isn’t “empty” and PAM won’t call it locked)
+    pw="$(dd if=/dev/urandom bs=12 count=1 2>/dev/null | base64)"
+    hash="$(openssl passwd -6 -salt "$(openssl rand -hex 8)" "$pw")"
+    printf 'admin:%s\n' "$hash" | chpasswd -e
   fi
 
   # SSH key
   if [ -n "$ADMIN_SSH_PUBKEY" ]; then
+    key_label=$(echo "$ADMIN_SSH_PUBKEY" | cut -d ' ' -f 3-)
+    _logger "Adding SSH key (${key_label}) to ${ADMIN_USER}'s authorized keys"
     key_data="$ADMIN_SSH_PUBKEY"
     if [ -f "$ADMIN_SSH_PUBKEY" ]; then
       key_data="$(cat "$ADMIN_SSH_PUBKEY")"
@@ -74,6 +84,9 @@ ensure_user() {
       printf '%s\n' "$key_data" >> "$auth"
     fi
     chown -R "$ADMIN_USER:$ADMIN_USER" "$home_dir/.ssh"
+    lbu include "$home_dir/.ssh"
+    _logger "Authorized SSH Keys:"
+    _logger "$(cat "$auth")"
   else
     _logger "WARNING: ADMIN_SSH_PUBKEY not provided; admin won't have key access."
   fi
