@@ -95,7 +95,8 @@ loop_unmap() {
   sudo losetup -d "$loop"
 }
 
-_with_p1() { # _with_p1 IMG cmd...
+
+with_p1_qemu() { # with_p1_qemu IMG cmd...
   # Provides LOOP_MOUNT environment variable which can be used to find the
   # appropriate mount point dynamically, rather than assuming a specific path.
   local img="$1"; shift
@@ -113,9 +114,19 @@ _with_p1() { # _with_p1 IMG cmd...
   loop_unmap "$loop"
   return $rc
 }
-with_p1() {
-  _with_p1 "$@"
-}
+
+# SD card adapter (simple mount)
+with_p1_sd() (
+  local disk="$1"; shift
+  # derive partitions safely
+  local part1
+  if [[ "$disk" =~ (mmcblk|nvme) ]]; then part1="${disk}p1"; else part1="${disk}1"; fi
+  mkdir -p /mnt/alpine-boot
+  mount -t vfat "$part1" /mnt/alpine-boot
+  trap 'umount /mnt/alpine-boot' RETURN
+  cd /mnt/alpine-boot && "$@"
+)
+
 
 fetch_atomically() { # fetch_atomically URL OUTFILE
   local url="$1" out="$2"
@@ -177,7 +188,7 @@ resolve_tarball_url() {
 }
 
 
-make-image() {
+make_image() {
   need parted
   need mkfs.vfat
   need kpartx
@@ -194,62 +205,96 @@ make-image() {
 }
 
 
-_populate_boot() (
+# Options (via env):
+#   TARBALL       : path to alpine RPi tarball
+#   ADD_DTB       : "1" to fetch DTB (QEMU only), else empty
+#   DTB_URL       : url to fetch DTB when ADD_DTB=1
+#   DTB_FILE      : destination path (relative to /mnt/alpine-boot) for DTB
+#   CMDLINE       : full contents for cmdline.txt
+#   CONFIG_TXT    : full contents for config.txt
+_populate_boot_common() (
   set -o pipefail
+  : "${TARBALL:?TARBALL required}"
   cd /mnt/alpine-boot
   tar -xpf "$TARBALL"
 
-  # Sanity: these should now exist on p1 for diskless boot
   for f in boot/vmlinuz-rpi boot/initramfs-rpi boot/modloop-rpi; do
     [[ -s "$f" ]] || { echo "Missing or empty after extract: $f"; exit 3; }
   done
 
-  # Add DTB matching QEMU raspi board
-  DTB_URL="${DTB_URL_DEFAULT}"
-  echo "DTB: $DTB_URL"
-  wget -S --progress=dot:giga -O "$DTB_FILE" "$DTB_URL"
-  [[ -s "$DTB_FILE" ]] || { echo "Failed to fetch DTB"; exit 4; }
+  if [[ "${ADD_DTB:-}" == "1" ]]; then
+    : "${DTB_URL:?}"; : "${DTB_FILE:?}"
+    echo "DTB: $DTB_URL"
+    fetch_atomically "$DTB_URL" "$DTB_FILE"
+    [[ -s "$DTB_FILE" ]] || { echo "Failed to fetch DTB"; exit 4; }
+  fi
 
-  # Minimal config.txt (ignored by QEMU; useful on real HW)
-  printf "[all]\narm_64bit=1\n" > config.txt
+  printf '%s\n' "${CONFIG_TXT:-[all]
+arm_64bit=1
+initramfs boot/initramfs-rpi followkernel}" > config.txt
 
-  # Diskless cmdline (NO root=). Force boot media to p1; DHCP; repo + modloop.
-  cat > cmdline.txt <<CMD
-rw earlyprintk loglevel=8 console=ttyAMA1,115200 panic=1 debug "${EARLYCON}"
-CMD
+  printf '%s\n' "${CMDLINE:-rw rootwait modules=loop,squashfs,sd-mod,usb-storage console=tty1}" > cmdline.txt
+
+  sync
+  echo "✓ Boot partition populated."
 )
-populate_boot() {
-  need wget
-  need tar
-  need kpartx
-  echo ">> Resolving latest Alpine RPi tarball for ${BRANCH}/${ARCH}…"
-  TARBALL_URL="$(resolve_tarball_url)"
-  echo "TARBALL: ${TARBALL_URL}"
 
-  echo ">> Downloading tarball…"
-  TMPDIR="$(mktemp -d)"; trap 'rm -rf "$TMPDIR"' EXIT
-  TARBALL="${TMPDIR}/alpine-rpi.tar.gz"
-  fetch_atomically "${TARBALL_URL}" "${TARBALL}"
 
-  echo ">> Populating FAT partition from tarball…"
-  with_p1 "$IMG" _populate_boot
-  echo ">> Boot partition populated."
+mk_config_txt() {
+  cat <<'CFG'
+[all]
+arm_64bit=1
+initramfs boot/initramfs-rpi followkernel
+CFG
+}
+
+mk_cmdline_qemu() {
+  echo 'rw rootwait modules=loop,squashfs,sd-mod,usb-storage console=ttyAMA1,115200'
+}
+
+mk_cmdline_rpi() {
+  # serial-only headless + apkovl
+  echo 'rw rootwait modules=loop,squashfs,sd-mod,usb-storage console=serial0,115200 apkovl=headless.apkovl.tar.gz'
 }
 
 
-# Populate the Alpine Pi headless installer files on the boot (FAT) partition.
-# Uses: with_p1 IMG cmd...
-#
-# Notes:
-# - If --overlay is omitted, downloads macmpi's headless.apkovl.tar.gz.
-# - If --unattend is provided, it is copied to /unattended.sh and chmod +x.
-# - If --auth-keys is provided, it is copied to /authorized_keys.
-# - If --answers is provided, it is copied to /answers.txt.
-# - Files are matched as: *.any.* and *.<TARGET>.*
-# - $target controls which file variants are copied:
-#     export TARGET=rpi   # for real hardware (default)
-#     export TARGET=qemu  # for emulation
-_populate_config() (
+populate_boot_qemu() {
+  need tar
+  local url tmp
+  url="$(resolve_tarball_url)"
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+  TARBALL="$tmp/alpine-rpi.tar.gz"; fetch_atomically "$url" "$TARBALL"
+
+  CONFIG_TXT="$(mk_config_txt)"
+  CMDLINE="$(mk_cmdline_qemu)"
+  ADD_DTB=1
+  DTB_URL="${DTB_URL_DEFAULT:?}"
+  DTB_FILE="boot/qemu-rpi4.dtb"
+
+  with_p1_qemu "$IMG" _populate_boot_common
+}
+
+
+populate_boot_sd() {
+  need tar
+  local url tmp
+  url="$(resolve_tarball_url)"
+  tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
+  TARBALL="$tmp/alpine-rpi.tar.gz"; fetch_atomically "$url" "$TARBALL"
+
+  CONFIG_TXT="$(mk_config_txt)"
+  CMDLINE="$(mk_cmdline_rpi)"
+  ADD_DTB=              # <- do NOT add a QEMU DTB on real hardware
+
+  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; fi
+  with_p1_sd "$SD_DEV" _populate_boot_common
+}
+
+
+# Options (via env):
+#   TARGET            : rpi|qemu  (controls which files are selected)
+#   overlay_src,...   : passthrough args like before
+_populate_config_common() (
   local target="$1"
   local overlay_src="$2"
   local unattend_src="$3"
@@ -260,9 +305,10 @@ _populate_config() (
   local wpa_supplicant_src="$8"
   local -a extra_files=("$@")
 
-  local boot="$BOOT_MNT"
+  local boot="/mnt/alpine-boot"
   [[ -d "$boot" ]] || { echo "boot mountpoint missing: $boot" >&2; return 1; }
 
+  : "${target:=rpi}"
   echo "→ Populating $boot with unattended configuration (target=$target)"
 
   # 1) headless.apkovl.tar.gz
@@ -274,7 +320,7 @@ _populate_config() (
     install -vm 0644 "$overlay_src" "$boot/headless.apkovl.tar.gz"
   fi
 
-  # 2) /pre-network.d hook scripts
+  # 2) pre-network hooks
   echo "- copying pre-network hooks..."
   mkdir -p "$boot/pre-network.d"
   find "$pre_network_src" -type f \
@@ -340,13 +386,9 @@ _populate_config() (
   echo "  Contents:"
   (cd "$boot" && ls -lahR)
 )
-populate_config() {
-  need curl
-  need install
-  need awk
-  need grep
-  need losetup
 
+
+setup_wifi_config() {
   if [ -z "$WIFI_SSID" ]; then read -rp "Enter WiFi SSID:" WIFI_SSID; fi
   if [ -z "$WIFI_PASSWORD" ]; then read -rp "Enter WiFi Password:" WIFI_PASSWORD; fi
 
@@ -357,11 +399,14 @@ populate_config() {
 
   export WIFI_SSID WIFI_PASSWORD
   envsubst < ./extras/wpa_supplicant.conf.example > ./etc/wpa_supplicant.conf
+}
 
-  BOOT_MNT="$IMG_MOUNT_PATH"
+
+populate_config_qemu() {
+  setup_wifi_config
 
   config_spec=(
-    "$TARGET"
+    "qemu"  # TARGET
     "$OVERLAY_SRC"
     "$UNATTEND_SRC"
     "$UNATTEND_LIB_SRC"
@@ -372,7 +417,26 @@ populate_config() {
     "${EXTRA_FILES[@]}"
   )
 
-  with_p1 "$IMG" _populate_config "${config_spec[@]}"
+  with_p1_qemu "$IMG" _populate_config_common "${config_spec[@]}"
+}
+
+populate_config_sd() {
+  setup_wifi_config
+
+  config_spec=(
+    "rpi"  # TARGET
+    "$OVERLAY_SRC"
+    "$UNATTEND_SRC"
+    "$UNATTEND_LIB_SRC"
+    "$PRE_NETWORK_SRC"
+    "$AUTH_KEYS_SRC"
+    "$ANSWERS_SRC"
+    "$WPA_SUPPLICANT_SRC"
+    "${EXTRA_FILES[@]}"
+  )
+
+  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; fi
+  with_p1_sd "$SD_DEV" _populate_config_common "${config_spec[@]}"
 }
 
 
@@ -386,7 +450,9 @@ _verify() (
 )
 
 verify() {
-  with_p1 "$IMG" _verify
+  >&2 echo
+  >&2 echo "Verifying image layout..."
+  with_p1_qemu "$IMG" _verify
 }
 
 
@@ -405,7 +471,7 @@ launch() {
   verify
 
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-  with_p1 "$IMG" _copy_launch_files "$TMP" "$DTB_FILE"
+  with_p1_qemu "$IMG" _copy_launch_files "$TMP" "$DTB_FILE"
   CMDLINE="$(cat "$TMP/cmdline")"
 
   echo ">> Booting Alpine in Install mode. SSH forward: localhost:${SSH_PORT} -> guest:22"
@@ -470,20 +536,22 @@ _test_qemu() (
   popd > /dev/null
 )
 test_qemu() {
-  with_p1 "$IMG" _test_qemu
+  with_p1_qemu "$IMG" _test_qemu
 }
 
 
 # Main entry point
 case "${1:-help}" in
-  make-image)        make-image ;;
-  populate-boot)     populate_boot ;;
-  populate-config)   populate_config ;;
-  verify)            verify ;;
-  launch)            launch ;;
-  test)              test_qemu ;;
-  sdcard)            sdcard ;;
-  clean)             clean ;;
+  make-image)             make_image ;;
+  populate-boot-qemu)     populate_boot_qemu ;;
+  populate-config-qemu)   populate_config_qemu ;;
+  populate-boot-sd)       populate_boot_sd ;;
+  populate-config-sd)     populate_config_sd ;;
+  verify)                 verify ;;
+  launch)                 launch ;;
+  test)                   test_qemu ;;
+  sdcard)                 sdcard ;;
+  clean)                  clean ;;
 
   # Provide help
   help|-h|--help)
