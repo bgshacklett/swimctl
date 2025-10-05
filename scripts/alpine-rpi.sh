@@ -113,8 +113,7 @@ with_p1_qemu() { # with_p1_qemu IMG cmd...
   sudo mkdir -p "$mount_path"
   sudo mount "$p1" "$mount_path"
   LOOP_BASENAME="$base" LOOP_MOUNT="$mount_path" "$@"
-  local rc=$?
-  return $rc
+  return $?
 }
 
 # SD card adapter (simple mount)
@@ -122,10 +121,18 @@ with_p1_sd() {
   local disk="$1"; shift
   # derive partitions safely
   local part1
-  if [[ "$disk" =~ (mmcblk|nvme) ]]; then part1="${disk}p1"; else part1="${disk}1"; fi
+
+  if [[ "$disk" =~ nvme ]]; then
+    >&2 echo "Cowardly refusing to operate on NVME storage."
+  fi
+
+  if [[ "$disk" =~ (mmcblk|nvme) ]]; then
+    part1="${disk}p1"; else part1="${disk}1"
+  fi
+
   mkdir -p /mnt/alpine-boot
   mount -t vfat "$part1" /mnt/alpine-boot
-  trap 'umount /mnt/alpine-boot' RETURN
+  trap 'umount /mnt/alpine-boot' EXIT
   cd /mnt/alpine-boot && "$@"
 }
 
@@ -293,9 +300,6 @@ populate_boot_sd() {
 }
 
 
-# Options (via env):
-#   TARGET            : rpi|qemu  (controls which files are selected)
-#   overlay_src,...   : passthrough args like before
 _populate_config_common() (
   local target="$1"
   local overlay_src="$2"
