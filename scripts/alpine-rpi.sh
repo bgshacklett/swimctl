@@ -91,8 +91,8 @@ loop_map() {
 }
 loop_unmap() {
   local loop="$1"
-  sudo kpartx -dv "$loop" >/dev/null
-  sudo losetup -d "$loop"
+  sudo kpartx -vd "$loop" >/dev/null
+  sudo losetup -vd "$loop"
 }
 
 
@@ -103,15 +103,17 @@ with_p1_qemu() { # with_p1_qemu IMG cmd...
   local loop base p1 mount_path
   need mount; need umount
   loop="$(loop_map "$img")"
+  mount_path="${IMG_MOUNT_PATH:-"/mnt/alpine-boot"}"
+
+  # shellcheck disable=SC2064
+  trap "umount -v $mount_path; loop_unmap $loop" EXIT
+
   base="$(basename "$loop")"
   p1="/dev/mapper/${base}p1"
-  mount_path="${IMG_MOUNT_PATH:-"/mnt/alpine-boot"}"
   sudo mkdir -p "$mount_path"
   sudo mount "$p1" "$mount_path"
   LOOP_BASENAME="$base" LOOP_MOUNT="$mount_path" "$@"
   local rc=$?
-  sudo umount "$mount_path" || true
-  loop_unmap "$loop"
   return $rc
 }
 
