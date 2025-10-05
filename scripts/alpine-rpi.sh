@@ -123,17 +123,20 @@ with_p1_sd() {
   local part1
 
   if [[ "$disk" =~ nvme ]]; then
-    >&2 echo "Cowardly refusing to operate on NVME storage."
+    >&2 echo "Cowardly refusing to operate on NVME storage."; exit 1
   fi
+
+  set -x
 
   if [[ "$disk" =~ (mmcblk|nvme) ]]; then
     part1="${disk}p1"; else part1="${disk}1"
   fi
 
-  mkdir -p /mnt/alpine-boot
-  mount -t vfat "$part1" /mnt/alpine-boot
-  trap 'umount /mnt/alpine-boot' EXIT
-  cd /mnt/alpine-boot && "$@"
+  mkdir -vp /mnt/alpine-boot
+  mount -t vfat "/dev/$part1" /mnt/alpine-boot
+  trap 'sync; umount /mnt/alpine-boot' EXIT
+  "$@"
+  set +x
 }
 
 
@@ -295,7 +298,8 @@ populate_boot_sd() {
   CMDLINE="$(mk_cmdline_rpi)"
   ADD_DTB=              # <- do NOT add a QEMU DTB on real hardware
 
-  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; fi
+  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; exit 1; fi
+  >&2 echo "Running populate_boot_sd against $SD_DEV..."
   with_p1_sd "$SD_DEV" _populate_boot_common
 }
 
@@ -441,7 +445,8 @@ populate_config_sd() {
     "${EXTRA_FILES[@]}"
   )
 
-  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; fi
+  if [ -z "${SD_DEV:-}" ]; then >&2 echo "SD_DEV must be set."; exit 1; fi
+  >&2 echo "Running populate_config_sd against $SD_DEV..."
   with_p1_sd "$SD_DEV" _populate_config_common "${config_spec[@]}"
 }
 
