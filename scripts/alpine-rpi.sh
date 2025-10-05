@@ -118,7 +118,7 @@ with_p1_qemu() { # with_p1_qemu IMG cmd...
 }
 
 # SD card adapter (simple mount)
-with_p1_sd() (
+with_p1_sd() {
   local disk="$1"; shift
   # derive partitions safely
   local part1
@@ -127,7 +127,7 @@ with_p1_sd() (
   mount -t vfat "$part1" /mnt/alpine-boot
   trap 'umount /mnt/alpine-boot' RETURN
   cd /mnt/alpine-boot && "$@"
-)
+}
 
 
 fetch_atomically() { # fetch_atomically URL OUTFILE
