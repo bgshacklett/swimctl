@@ -40,7 +40,6 @@ UNATTEND_SRC="${UNATTEND_SRC:-"etc/unattended.sh"}"
 UNATTEND_LIB_SRC="${UNATTEND_LIB_SRC:-"etc/unattended.lib.sh"}"
 PRE_NETWORK_SRC="${PRE_NETWORK_SRC:-"etc/pre-network.d/"}"
 AUTH_KEYS_SRC="${AUTH_KEYS_SRC:-"etc/authorized_keys"}"
-ANSWERS_SRC="${ANSWERS_SRC:-"etc/answers.txt"}"
 WPA_SUPPLICANT_SRC="${WPA_SUPPLICANT_SRC:-"etc/wpa_supplicant.conf"}"
 
 WIFI_SSID=${WIFI_SSID:-""}
@@ -422,7 +421,7 @@ populate_config_qemu() {
     "$UNATTEND_LIB_SRC"
     "$PRE_NETWORK_SRC"
     "$AUTH_KEYS_SRC"
-    "$ANSWERS_SRC"
+    "${ANSWERS_SRC:-"etc/answers-qemu.txt"}"
     "$WPA_SUPPLICANT_SRC"
     "${EXTRA_FILES[@]}"
   )
@@ -440,7 +439,7 @@ populate_config_sd() {
     "$UNATTEND_LIB_SRC"
     "$PRE_NETWORK_SRC"
     "$AUTH_KEYS_SRC"
-    "$ANSWERS_SRC"
+    "${ANSWERS_SRC:-"etc/answers.txt"}"
     "$WPA_SUPPLICANT_SRC"
     "${EXTRA_FILES[@]}"
   )
