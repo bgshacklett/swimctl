@@ -4,6 +4,7 @@
 # configure lines below to enable your desired configuration. Any default
 # values are listed here for convenience.
 
+#export HOSTNAME=                  # Set the hostname after initial setup
 #export ADMIN_USER=admin           # username to create
 #export ADMIN_SSH_PUBKEY=          # either the full key string OR path to file
 #export TIMEZONE=UTC               # e.g. America/New_York
