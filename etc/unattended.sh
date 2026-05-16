@@ -18,11 +18,7 @@ run_steps() {
 	dir="$1"
 	[ -d "$dir" ] || return 0
 	find "$dir" -maxdepth 1 -type f -name '*.sh' | sort | while read -r s; do
-		case "$s" in
-			*.disabled) continue;;
-			*.sh) _logger "→ $s"; ("$s");;
-			*) :;;
-		esac
+		_logger "→ $s"; ("$s")
 	done
 }
 
@@ -45,6 +41,12 @@ else
 	HEADLESS_OVL="${BOOT}/${HEADLESS_OVL}"
 fi
 export BOOT
+
+if [ -z "$BOOT" ]; then
+	_logger "FATAL: could not locate boot media"
+	exit 1
+fi
+
 _logger "Found boot media at: $BOOT"
 
 

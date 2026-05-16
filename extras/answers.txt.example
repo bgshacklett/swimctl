@@ -18,8 +18,7 @@ iface wlan0 inet dhcp
     wpa-ssid ${INTERFACESOPTS_SSID}
     wpa-psk  ${INTERFACESOPTS_PSK}"
 
-# Set timezone to local time. This device performs tasks on a schedule, and
-# keeping it in the local time zone makes more sense than using an offset.
+# Set timezone to UTC
 TIMEZONEOPTS="-z UTC"
 
 # No proxy

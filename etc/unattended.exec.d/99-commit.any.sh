@@ -13,6 +13,7 @@ lbu_commit() {
     # Collect options to forward 1:1 to `lbu commit`
     _fwd_opts=
     _p_arg=
+    OPTIND=1
     while getopts "denp:qv" _opt; do
         case "$_opt" in
             d|e|n|q|v) _fwd_opts="$_fwd_opts -$_opt" ;;

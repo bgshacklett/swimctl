@@ -107,9 +107,11 @@ main() {
   INTERFACESOPTS_SSID="$(grep '^\sssid=' "$BOOT/wpa_supplicant.conf" \
                          | cut -d = -f 2 \
                          | tr -d '"')"
+  export INTERFACESOPTS_SSID
 
   INTERFACESOPTS_PSK="$(grep '^\spsk=' "$BOOT/wpa_supplicant.conf" \
                         | cut -d = -f 2)"
+  export INTERFACESOPTS_PSK
 
   setup_alpine
   harden_sshd

@@ -46,7 +46,7 @@ WIFI_SSID=${WIFI_SSID:-""}
 WIFI_PASSWORD=${WIFI_PASSWORD:-""}
 
 typeset -a EXTRA_FILES
-EXTRA_FILES=( "${EXTRA_FILES[@]:-()}" )
+EXTRA_FILES=( ${EXTRA_FILES[@]+"${EXTRA_FILES[@]}"} )
 
 # TARGET controls which file variants are copied, and to what kind of media:
 #   export TARGET=qemu  # for emulation (default)
@@ -105,7 +105,7 @@ with_p1_qemu() { # with_p1_qemu IMG cmd...
   mount_path="${IMG_MOUNT_PATH:-"/mnt/alpine-boot"}"
 
   # shellcheck disable=SC2064
-  trap "umount -v $mount_path; loop_unmap $loop" EXIT
+  trap "sudo umount -v $mount_path; loop_unmap $loop" EXIT
 
   base="$(basename "$loop")"
   p1="/dev/mapper/${base}p1"
@@ -312,7 +312,7 @@ _populate_config_common() (
   local auth_keys_src="$6"
   local answers_src="$7"
   local wpa_supplicant_src="$8"
-  local -a extra_files=("$@")
+  local -a extra_files=("${@:9}")
 
   local boot="/mnt/alpine-boot"
   [[ -d "$boot" ]] || { echo "boot mountpoint missing: $boot" >&2; return 1; }

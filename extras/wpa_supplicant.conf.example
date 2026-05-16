@@ -1,4 +1,4 @@
-country=us
+country=US
 update_config=1
 ctrl_interface=/var/run/wpa_supplicant
 

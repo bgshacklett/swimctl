@@ -104,7 +104,7 @@ UPLINK="$($IP -o link show | awk -F': ' '{print $2}' \
 $IP link set "$UPLINK" down
 $IP link set "$UPLINK" netns ap
 
-ip link set "$AP_WLAN" down
+$IP link set "$AP_WLAN" down
 AP_PHY="$(basename "$(readlink -f "/sys/class/net/$AP_WLAN/phy80211")")"
 iw phy "$AP_PHY" set netns name ap
 
