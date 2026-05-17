@@ -395,6 +395,10 @@ _populate_config_common() (
 
   # 5) answers.txt (optional)
   if [[ -n "$answers_src" ]]; then
+    if [[ ! -f "$answers_src" ]]; then
+      echo "Missing $answers_src — run: make init-config" >&2
+      return 1
+    fi
     echo "- installing answers.txt"
     install -vm 0644 "$answers_src" "$boot/answers.txt"
   fi
@@ -564,6 +568,42 @@ clean() {
 }
 
 
+# init-config: scaffold a fresh checkout's etc/ tree from the extras/
+# templates. Idempotent — existing files are never overwritten, so it's safe
+# to re-run after editing.
+init_config() {
+  local -a pairs=(
+    "extras/answers.txt.example|etc/answers.txt"
+    "extras/answers.txt.example|etc/answers-qemu.txt"
+    "extras/alpine-setup.any.conf.example|etc/unattended.conf.d/alpine-setup.any.conf"
+  )
+
+  local pair src dst
+  local installed=0 kept=0
+  for pair in "${pairs[@]}"; do
+    src="${pair%%|*}"
+    dst="${pair##*|}"
+    if [[ ! -f "$src" ]]; then
+      echo "! template missing: $src (skipping)" >&2
+      continue
+    fi
+    if [[ -e "$dst" ]]; then
+      echo "= keep:    $dst"
+      kept=$((kept + 1))
+    else
+      mkdir -p "$(dirname "$dst")"
+      install -m 0644 "$src" "$dst"
+      echo "+ install: $dst (from $src)"
+      installed=$((installed + 1))
+    fi
+  done
+
+  echo
+  echo "init-config: $installed installed, $kept kept (existing untouched)"
+  echo "Edit etc/answers*.txt and etc/unattended.conf.d/*.conf for your deployment."
+}
+
+
 refresh_lock() {
   need curl
 
@@ -674,6 +714,7 @@ case "${1:-help}" in
   test)                   test_qemu ;;
   sdcard)                 sdcard ;;
   refresh-lock)           refresh_lock ;;
+  init-config)            init_config ;;
   clean)                  clean ;;
 
   # Provide help

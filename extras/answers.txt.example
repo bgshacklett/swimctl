@@ -34,8 +34,9 @@ APKREPOSOPTS="-1"
 #  -g  Comma or space separated list of groups to add user to
 USEROPTS="-a -u -g audio,input,video,netdev admin"
 
-# Set SSH Key. Automatically enables `-k` for setup-user
-USERSSHKEY="<Insert SSH Key Here>"
+# Set SSH Key. Path is envsubst-resolved at boot to the authorized_keys
+# file shipped on the boot media. Populate etc/authorized_keys before flashing.
+USERSSHKEY="${BOOT}/authorized_keys"
 
 # Install Openssh
 SSHDOPTS="-c openssh"
