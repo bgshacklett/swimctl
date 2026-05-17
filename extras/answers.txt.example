@@ -1,0 +1,52 @@
+# Answer file is run through envsubst. Standard POSIX style variables will
+# be replaced.
+
+KEYMAPOPTS="us us"
+
+# Keep hostname
+HOSTNAMEOPTS="$(hostname)"
+
+# Set device manager to mdev
+DEVDOPTS=mdev
+
+# Contents of /etc/network/interfaces
+INTERFACESOPTS="auto lo
+iface lo inet loopback
+
+auto wlan0
+iface wlan0 inet dhcp
+    wpa-ssid ${INTERFACESOPTS_SSID}
+    wpa-psk  ${INTERFACESOPTS_PSK}"
+
+# Set timezone to UTC
+TIMEZONEOPTS="-z UTC"
+
+# No proxy
+PROXYOPTS=none
+
+# Add first mirror (CDN)
+APKREPOSOPTS="-1"
+
+# Create an admin user
+#  -a  Create admin user. Add to wheel group and set up doas
+#  -u  Unlock the user automatically (eg. creating the user non-interactively
+#      with an ssh key for login)
+#  -g  Comma or space separated list of groups to add user to
+USEROPTS="-a -u -g audio,input,video,netdev admin"
+
+# Set SSH Key. Path is envsubst-resolved at boot to the authorized_keys
+# file shipped on the boot media. Populate etc/authorized_keys before flashing.
+USERSSHKEY="${BOOT}/authorized_keys"
+
+# Install Openssh
+SSHDOPTS="-c openssh"
+
+# Use chrony for NTP
+NTPOPTS=chrony
+
+# No disk install (diskless)
+DISKOPTS=none
+
+# Set LBUOPTS and APKCACHEOPTS from install environment
+LBUOPTS="${LBUOPTS}"
+APKCACHEOPTS="$LBUOPTS/cache"

@@ -1,0 +1,19 @@
+# Unattended Setup Config
+#
+# Place this file in <repo_root>/etc/unattended.conf.d/ then uncomment and
+# configure lines below to enable your desired configuration. Any default
+# values are listed here for convenience.
+
+#export HOSTNAME=                  # Set the hostname after initial setup
+#export ADMIN_USER=admin           # username to create
+#export ADMIN_SSH_PUBKEY=          # either the full key string OR path to file
+#export TIMEZONE=UTC               # e.g. America/New_York
+#export SSH_PORT=22                # change if you want a non-standard port
+#export DISABLE_ROOT=yes           # yes|no (locks root & forbids root SSH)
+#export RANDOMIZE_ROOT_PW=no       # yes|no (ignored if DISABLE_ROOT=yes)
+#export ADD_SUDO=yes               # yes|no (install sudo, add admin to wheel)
+#export NTP_IMPL=chrony            # chrony|openntpd (chrony recommended)
+#export APK_CACHE_DIR=             # e.g. /media/mmcblk0p1/apkcache  (optional)
+#export LBU_MEDIA=                 # e.g. mmcblk0p1 (boot media name, optional)
+#export ENABLE_COMMUNITY_REPO=yes  # yes|no ("yes" required if ADD_SUDO=yes)
+#export EXTRA_PACKAGES=            # space-separated list, optional
