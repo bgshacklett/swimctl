@@ -21,13 +21,22 @@ set -euo pipefail
 FETCH_CACHE_APP=swimctl-builder
 export FETCH_CACHE_APP
 
+# -------- Lock file --------
+# Sourced before tunables so locked values become defaults that env vars can
+# still override. Refresh via `./scripts/alpine-rpi.sh refresh-lock`.
+LOCK_FILE="${LOCK_FILE:-etc/alpine.lock}"
+if [[ -r "$LOCK_FILE" ]]; then
+  # shellcheck disable=SC1090
+  . "$LOCK_FILE"
+fi
+
 # -------- Tunables --------
 IMG="${IMG:-dist/alpine-rpi.img}"
 IMG_MOUNT_PATH="${IMG_MOUNT_PATH:-/mnt/alpine-boot}"
 SIZE_GB="${SIZE_GB:-2}"              # Single FAT32 partition size
 BOARD="${BOARD:-pi3}"                 # pi4 | pi3
 ARCH="${ARCH:-aarch64}"
-BRANCH="${BRANCH:-latest-stable}"     # latest-stable | edge
+BRANCH="${BRANCH:-${ALPINE_BRANCH:-latest-stable}}"  # env > lock > latest-stable
 REPO_BASE="${REPO_BASE:-https://dl-cdn.alpinelinux.org/alpine}"
 
 SSH_PORT="${SSH_PORT:-5022}"
@@ -75,7 +84,10 @@ case "$BOARD" in
 esac
 
 REL_DIR="${REPO_BASE}/${BRANCH}/releases/${ARCH}/"
-DTB_URL_DEFAULT="https://raw.githubusercontent.com/raspberrypi/firmware/master/boot/${DTB_FILE}"
+# raw.githubusercontent.com is deterministic per commit sha, so pinning the
+# commit (via the lock file) is the integrity guarantee — no separate sha
+# needed on the DTB itself.
+DTB_URL_DEFAULT="https://raw.githubusercontent.com/raspberrypi/firmware/${RPI_FW_COMMIT:-master}/boot/${DTB_FILE}"
 
 # -------- Helpers --------
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing tool: $1"; exit 1; }; }
@@ -139,25 +151,43 @@ with_p1_sd() {
 }
 
 
-fetch_atomically() { # fetch_atomically URL OUTFILE
-  local url="$1" out="$2"
+_verify_sha256() { # _verify_sha256 PATH EXPECTED_SHA256
+  local path="$1" expected="$2" actual
+  actual="$(sha256sum -- "$path" | awk '{print $1}')"
+  if [[ "$actual" != "$expected" ]]; then
+    echo "sha256 mismatch for $path" >&2
+    echo "  expected: $expected" >&2
+    echo "  actual:   $actual" >&2
+    return 1
+  fi
+}
+
+fetch_atomically() { # fetch_atomically URL OUTFILE [EXPECTED_SHA256]
+  local url="$1" out="$2" expected_sha="${3:-}"
   local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/${FETCH_CACHE_APP:-fetch-cache}"
   local key cache_path tmp tmp2
 
   need wget
+  [[ -z "$expected_sha" ]] || need sha256sum
 
   mkdir -p "$cache_root" || { echo "Cannot create cache dir: $cache_root" >&2; return 1; }
   key="$(printf '%s' "$url" | sha256sum | awk '{print $1}')"
   cache_path="$cache_root/$key"
 
-  # If cached and non-empty, copy it out atomically.
+  # If cached and non-empty, verify (if requested) then copy out atomically.
   if [[ -s "$cache_path" ]]; then
-    tmp2="$(mktemp "${out}.XXXXXX")" || return 1
-    if ! cp -f -- "$cache_path" "$tmp2"; then
-      rm -f -- "$tmp2"; echo "Cache copy failed: $url" >&2; return 1
+    if [[ -n "$expected_sha" ]] && ! _verify_sha256 "$cache_path" "$expected_sha"; then
+      # Cached copy is bad — drop it and fall through to re-download.
+      echo "Cache poisoned for $url; refetching" >&2
+      rm -f -- "$cache_path"
+    else
+      tmp2="$(mktemp "${out}.XXXXXX")" || return 1
+      if ! cp -f -- "$cache_path" "$tmp2"; then
+        rm -f -- "$tmp2"; echo "Cache copy failed: $url" >&2; return 1
+      fi
+      mv -f -- "$tmp2" "$out"
+      return 0
     fi
-    mv -f -- "$tmp2" "$out"
-    return 0
   fi
 
   # Not cached (or empty) — fetch to a temp file.
@@ -167,6 +197,11 @@ fetch_atomically() { # fetch_atomically URL OUTFILE
   fi
   if [[ ! -s "$tmp" ]]; then
     rm -f -- "$tmp"; echo "Empty download: $url" >&2; return 1
+  fi
+
+  # Verify before promoting into the cache.
+  if [[ -n "$expected_sha" ]] && ! _verify_sha256 "$tmp" "$expected_sha"; then
+    rm -f -- "$tmp"; return 1
   fi
 
   # Try to install into cache atomically. If another process beat us, just use theirs.
@@ -189,7 +224,11 @@ fetch_atomically() { # fetch_atomically URL OUTFILE
 }
 
 resolve_tarball_url() {
-  # Find alpine-rpi-*-aarch64.tar.gz in the release directory index
+  # Prefer the locked tarball name; otherwise scrape the release index.
+  if [[ -n "${ALPINE_TARBALL_NAME:-}" ]]; then
+    echo "${REL_DIR}${ALPINE_TARBALL_NAME}"
+    return 0
+  fi
   need wget
   local idx url
   idx="$(wget -vO- "${REL_DIR}")" || return 1
@@ -274,7 +313,8 @@ populate_boot_qemu() {
   local url tmp
   url="$(resolve_tarball_url)"
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
-  TARBALL="$tmp/alpine-rpi.tar.gz"; fetch_atomically "$url" "$TARBALL"
+  TARBALL="$tmp/alpine-rpi.tar.gz"
+  fetch_atomically "$url" "$TARBALL" "${ALPINE_TARBALL_SHA256:-}"
 
   CONFIG_TXT="$(mk_config_txt)"
   CMDLINE="$(mk_cmdline_qemu)"
@@ -291,7 +331,8 @@ populate_boot_sd() {
   local url tmp
   url="$(resolve_tarball_url)"
   tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' RETURN
-  TARBALL="$tmp/alpine-rpi.tar.gz"; fetch_atomically "$url" "$TARBALL"
+  TARBALL="$tmp/alpine-rpi.tar.gz"
+  fetch_atomically "$url" "$TARBALL" "${ALPINE_TARBALL_SHA256:-}"
 
   CONFIG_TXT="$(mk_config_txt)"
   CMDLINE="$(mk_cmdline_rpi)"
@@ -523,6 +564,71 @@ clean() {
 }
 
 
+refresh_lock() {
+  need curl
+
+  # Each curl response is buffered into a variable, then parsed with a single
+  # awk pass that uses `exit` after the first match. Multi-stage pipes with
+  # `head -n1` / `grep -m1` cause SIGPIPE-on-pipefail failures (exit 23/141)
+  # depending on relative timing.
+
+  # Always start from latest-stable so refresh-lock pulls forward, regardless
+  # of what the existing lock pinned to.
+  local rel_dir index_html tarball_name
+  rel_dir="${REPO_BASE}/latest-stable/releases/${ARCH}/"
+  echo ">> Querying release index: $rel_dir"
+  index_html="$(curl -fsSL "$rel_dir")"
+  tarball_name="$(awk 'match($0, /alpine-rpi-[^"]*-aarch64\.tar\.gz/) {
+    print substr($0, RSTART, RLENGTH); exit
+  }' <<< "$index_html")"
+  [[ -n "$tarball_name" ]] || { echo "Could not find alpine-rpi-*-aarch64.tar.gz"; exit 1; }
+
+  # Derive vMAJOR.MINOR branch from the tarball version so future runs target
+  # the same series even when latest-stable advances.
+  local version v_branch
+  version="$(echo "$tarball_name" \
+    | sed -E 's/^alpine-rpi-([0-9]+\.[0-9]+)\.[0-9]+.*$/\1/')"
+  v_branch="v${version}"
+
+  local sha_url sha_body tarball_sha
+  sha_url="${rel_dir}${tarball_name}.sha256"
+  echo ">> Fetching sha256 sidecar: $sha_url"
+  sha_body="$(curl -fsSL "$sha_url")"
+  tarball_sha="$(awk '{print $1; exit}' <<< "$sha_body")"
+  [[ ${#tarball_sha} -eq 64 ]] || { echo "Invalid sha256 from $sha_url: $tarball_sha"; exit 1; }
+
+  echo ">> Resolving raspberrypi/firmware master HEAD"
+  local fw_response fw_commit
+  fw_response="$(curl -fsSL "https://api.github.com/repos/raspberrypi/firmware/commits/master")"
+  fw_commit="$(awk 'match($0, /"sha"[[:space:]]*:[[:space:]]*"[0-9a-f]+"/) {
+    # Split the matched substring "sha": "<HASH>" on the quote char.
+    # Fields end up as: ["", "sha", ": ", "<HASH>", ""]
+    line = substr($0, RSTART, RLENGTH);
+    split(line, parts, "\"");
+    print parts[4]; exit
+  }' <<< "$fw_response")"
+  [[ ${#fw_commit} -eq 40 ]] || { echo "Could not resolve firmware commit: $fw_commit"; exit 1; }
+
+  local lock="${LOCK_FILE:-etc/alpine.lock}"
+  cat > "$lock" <<EOF
+# etc/alpine.lock — pinned Alpine RPi build inputs.
+# Generated by: ./scripts/alpine-rpi.sh refresh-lock
+# Regenerate to pull in newer Alpine releases or firmware.
+
+ALPINE_BRANCH=${v_branch}
+ALPINE_TARBALL_NAME=${tarball_name}
+ALPINE_TARBALL_SHA256=${tarball_sha}
+
+# raspberrypi/firmware is fetched via raw.githubusercontent.com, which is
+# byte-deterministic per commit sha — the commit itself is the integrity
+# guarantee, so no separate sha256 is recorded for the DTB.
+RPI_FW_COMMIT=${fw_commit}
+EOF
+  echo ">> Wrote $lock:"
+  cat "$lock"
+}
+
+
 _check_files_exist() {
   status=0
 
@@ -567,6 +673,7 @@ case "${1:-help}" in
   launch)                 launch ;;
   test)                   test_qemu ;;
   sdcard)                 sdcard ;;
+  refresh-lock)           refresh_lock ;;
   clean)                  clean ;;
 
   # Provide help

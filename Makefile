@@ -41,6 +41,10 @@ populate-config-sd:
 .PHONY: sdcard
 sdcard: populate-boot-sd populate-config-sd
 
+.PHONY: refresh-lock
+refresh-lock:
+	@scripts/alpine-rpi.sh refresh-lock
+
 .PHONY: clean
 clean:
 	@scripts/alpine-rpi.sh clean
