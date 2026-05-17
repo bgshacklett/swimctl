@@ -57,9 +57,13 @@ lbu_commit() {
         # Check the expected mountpoint exists to preempt lbu’s vague usage
         _mnt="/media/$_media"
         if [ ! -d "$_mnt" ]; then
+            # Redact `-p PASSWORD` from the hint string so the encryption
+            # password isn't written to stderr/logs. We don't need the full
+            # option string in the hint — just enough to be useful.
+            _safe_opts="$(echo "$_fwd_opts" | sed 's/-p [^ ]*/-p ***/g')"
             echo "Error: mountpoint '$_mnt' does not exist." >&2
             echo "Hint: mkdir -p '$_mnt' and ensure the media can be mounted read/write." >&2
-            echo "Alt:  LBU_BACKUPDIR=/media/$_media lbu_commit $_fwd_opts" >&2
+            echo "Alt:  LBU_BACKUPDIR=/media/$_media lbu_commit$_safe_opts" >&2
             return 2
         fi
         # shellcheck disable=SC2086  # $_fwd_opts is intentionally word-split

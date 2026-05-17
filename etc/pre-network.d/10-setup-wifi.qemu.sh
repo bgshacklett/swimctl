@@ -28,7 +28,10 @@ set -x
 ntpd -n -q -p pool.ntp.org
 date -u    # sanity-check it's roughly correct now
 
-# temporarily point to HTTP so we can install CA certs
+# Temporarily point to HTTP so we can install CA certs. APK still verifies
+# package signatures via /etc/apk/keys, but the index could be tampered with
+# (e.g. served older vulnerable versions), so we flip back to HTTPS as soon
+# as ca-certificates-bundle is in place.
 echo 'http://dl-cdn.alpinelinux.org/alpine/latest-stable/main' >/etc/apk/repositories
 
 apk update
@@ -38,6 +41,10 @@ apk add ca-certificates-bundle
 ls -l /etc/ssl/cert.pem /etc/ssl/certs/ca-certificates.crt
 # if /etc/ssl/cert.pem is missing for some reason:
 ln -sf /etc/ssl/certs/ca-certificates.crt /etc/ssl/cert.pem
+
+# Now that we have a trust store, switch to HTTPS for all subsequent apk ops.
+echo 'https://dl-cdn.alpinelinux.org/alpine/latest-stable/main' >/etc/apk/repositories
+apk update
 
 set +x
 }
