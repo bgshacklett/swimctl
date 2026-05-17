@@ -64,16 +64,22 @@ TARGET="${TARGET:=qemu}"  # Assume qemu unless overridden
 
 
 # -------- Board mapping --------
+# DTB_NAME is the bare filename (used as a URL path component).
+# DTB_PATH is the on-disk location relative to the FAT partition root, used
+# by _verify and _copy_launch_files. Splitting them avoids the bug where
+# populate_boot_qemu used to override DTB_FILE to "boot/qemu-rpi4.dtb",
+# leaving _verify/launch looking at a different (nonexistent) path on
+# subsequent script invocations.
 case "$BOARD" in
   pi4)
-    DTB_FILE="${DTB_FILE:-bcm2711-rpi-4-b.dtb}"
+    DTB_NAME="${DTB_NAME:-bcm2711-rpi-4-b.dtb}"
     QEMU_MACHINE="raspi4b"
     QEMU_CPU="cortex-a72"
     RAM_MB="${RAM_MB:-2048}"
     EARLYCON="${EARLYCON:-earlycon=pl011,mmio32,0xfe201000 keep_bootcon}"
     ;;
   pi3)
-    DTB_FILE="${DTB_FILE:-bcm2710-rpi-3-b-plus.dtb}"
+    DTB_NAME="${DTB_NAME:-bcm2710-rpi-3-b-plus.dtb}"
     QEMU_MACHINE="raspi3b"
     QEMU_CPU="cortex-a53"
     RAM_MB="${RAM_MB:-1024}"
@@ -81,12 +87,13 @@ case "$BOARD" in
     ;;
   *) echo "Unsupported BOARD=$BOARD (use pi4 or pi3)"; exit 2;;
 esac
+DTB_PATH="boot/${DTB_NAME}"
 
 REL_DIR="${REPO_BASE}/${BRANCH}/releases/${ARCH}/"
 # raw.githubusercontent.com is deterministic per commit sha, so pinning the
 # commit (via the lock file) is the integrity guarantee — no separate sha
 # needed on the DTB itself.
-DTB_URL_DEFAULT="https://raw.githubusercontent.com/raspberrypi/firmware/${RPI_FW_COMMIT:-master}/boot/${DTB_FILE}"
+DTB_URL_DEFAULT="https://raw.githubusercontent.com/raspberrypi/firmware/${RPI_FW_COMMIT:-master}/boot/${DTB_NAME}"
 
 # -------- Helpers --------
 need() { command -v "$1" >/dev/null 2>&1 || { echo "Missing tool: $1"; exit 1; }; }
@@ -109,21 +116,33 @@ loop_unmap() {
 with_p1_qemu() { # with_p1_qemu IMG cmd...
   # Provides LOOP_MOUNT environment variable which can be used to find the
   # appropriate mount point dynamically, rather than assuming a specific path.
+  #
+  # Cleanup is explicit at the end (umount + loop_unmap). The EXIT trap is
+  # only a safety net for abnormal exits: it can't fire when callers chain
+  # multiple with_p1_qemu calls (each `trap` replaces the previous) or when
+  # they finish with `exec` (replaces the shell entirely).
   local img="$1"; shift
-  local loop base p1 mount_path
+  local loop base p1 mount_path rc
   need mount; need umount
   loop="$(loop_map "$img")"
   mount_path="${IMG_MOUNT_PATH:-"/mnt/alpine-boot"}"
 
   # shellcheck disable=SC2064
-  trap "sudo umount -v $mount_path; loop_unmap $loop" EXIT
+  trap "sudo umount -v $mount_path 2>/dev/null || true; loop_unmap $loop 2>/dev/null || true" EXIT
 
   base="$(basename "$loop")"
   p1="/dev/mapper/${base}p1"
   sudo mkdir -p "$mount_path"
   sudo mount "$p1" "$mount_path"
-  LOOP_BASENAME="$base" LOOP_MOUNT="$mount_path" "$@"
-  return $?
+
+  rc=0
+  LOOP_BASENAME="$base" LOOP_MOUNT="$mount_path" "$@" || rc=$?
+
+  sudo umount -v "$mount_path"
+  loop_unmap "$loop"
+  trap - EXIT
+
+  return "$rc"
 }
 
 # SD card adapter (simple mount)
@@ -258,7 +277,7 @@ make_image() {
 #   TARBALL       : path to alpine RPi tarball
 #   ADD_DTB       : "1" to fetch DTB (QEMU only), else empty
 #   DTB_URL       : url to fetch DTB when ADD_DTB=1
-#   DTB_FILE      : destination path (relative to /mnt/alpine-boot) for DTB
+#   DTB_PATH      : destination path (relative to /mnt/alpine-boot) for DTB
 #   CMDLINE       : full contents for cmdline.txt
 #   CONFIG_TXT    : full contents for config.txt
 _populate_boot_common() (
@@ -272,10 +291,10 @@ _populate_boot_common() (
   done
 
   if [[ "${ADD_DTB:-}" == "1" ]]; then
-    : "${DTB_URL:?}"; : "${DTB_FILE:?}"
-    echo "DTB: $DTB_URL"
-    fetch_atomically "$DTB_URL" "$DTB_FILE"
-    [[ -s "$DTB_FILE" ]] || { echo "Failed to fetch DTB"; exit 4; }
+    : "${DTB_URL:?}"; : "${DTB_PATH:?}"
+    echo "DTB: $DTB_URL -> $DTB_PATH"
+    fetch_atomically "$DTB_URL" "$DTB_PATH"
+    [[ -s "$DTB_PATH" ]] || { echo "Failed to fetch DTB"; exit 4; }
   fi
 
   printf '%s\n' "${CONFIG_TXT:-[all]
@@ -319,7 +338,9 @@ populate_boot_qemu() {
   CMDLINE="$(mk_cmdline_qemu)"
   ADD_DTB=1
   DTB_URL="${DTB_URL_DEFAULT:?}"
-  DTB_FILE="boot/qemu-rpi4.dtb"
+  # DTB_PATH is set from the board mapping; do not override here. Overriding
+  # to a custom name made the downloaded DTB invisible to _verify/launch on
+  # subsequent script invocations (which re-read DTB_PATH fresh).
 
   with_p1_qemu "$IMG" _populate_boot_common
 }
@@ -502,7 +523,7 @@ populate_config_sd() {
 
 _verify() (
   cd /mnt/alpine-boot
-  for f in boot/vmlinuz-rpi boot/initramfs-rpi boot/modloop-rpi "$DTB_FILE"; do
+  for f in boot/vmlinuz-rpi boot/initramfs-rpi boot/modloop-rpi "$DTB_PATH"; do
     [[ -s "$f" ]] || { echo "Missing or empty: $f"; exit 3; }
   done
   echo "cmdline:"
@@ -531,7 +552,7 @@ launch() {
   verify
 
   TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
-  with_p1_qemu "$IMG" _copy_launch_files "$TMP" "$DTB_FILE"
+  with_p1_qemu "$IMG" _copy_launch_files "$TMP" "$DTB_PATH"
   CMDLINE="$(cat "$TMP/cmdline")"
 
   echo ">> Booting Alpine in Install mode. SSH forward: localhost:${SSH_PORT} -> guest:22"

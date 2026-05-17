@@ -13,13 +13,28 @@ alias _logger='logger -st "${0##*/}"'
 _logger "Starting unattended.sh..."
 
 
-# Run sorted steps
+# Run sorted steps. Returns non-zero on the first step that fails.
+#
+# The naive `find | sort | while read` pipeline puts the loop in a subshell,
+# so `set -e` inside a failing step doesn't propagate to the parent and the
+# overall pipe exits 0 — silently masking setup failures. Redirecting from a
+# temp file keeps the loop in the current shell so failures bubble up.
 run_steps() {
 	dir="$1"
 	[ -d "$dir" ] || return 0
-	find "$dir" -maxdepth 1 -type f -name '*.sh' | sort | while read -r s; do
-		_logger "→ $s"; ("$s")
-	done
+	_list="$(mktemp)" || return 1
+	find "$dir" -maxdepth 1 -type f -name '*.sh' | sort > "$_list"
+	_rc=0
+	while IFS= read -r s; do
+		_logger "→ $s"
+		if ! ("$s"); then
+			_rc=$?
+			_logger "FAILED: $s (exit $_rc)"
+			break
+		fi
+	done < "$_list"
+	rm -f "$_list"
+	return "$_rc"
 }
 
 _logger "Discovering environment..."
@@ -65,8 +80,15 @@ if [ -d "$BOOT/unattended.conf.d" ]; then
 	done
 fi
 
-# Execute repo-provided steps from the boot media
-run_steps "$BOOT/unattended.exec.d"
+# Execute repo-provided steps from the boot media. On failure, leave the
+# live installer running so the operator can SSH in (if sshd came up earlier)
+# or use the serial console to diagnose — don't reboot into a half-set-up
+# persistent state.
+if ! run_steps "$BOOT/unattended.exec.d"; then
+	_logger "FATAL: setup step failed; staying in live installer for diagnosis"
+	_logger "      (power-cycle when ready; do NOT trust persistent state)"
+	exit 1
+fi
 
 _logger "Finished unattended script. Rebooting!"
 reboot

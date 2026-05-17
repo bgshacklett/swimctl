@@ -74,17 +74,24 @@ setup_alpine() {
 
   SETUP_OPTS="-e"  # Setting root password fails in unattended setup.
 
-  LBUOPTS="$(find /media \
-             -maxdepth 3 \
-             -type d \
-             -path '*/.*' \
-             -prune -o \
-             -type f \
-             -name '.boot_repository' \
-             -exec dirname {} \; \
-             | head -1 \
-             | xargs dirname)"
+  # Locate the boot media via the .boot_repository marker file. The original
+  # `find ... | head -1 | xargs dirname` chain crashed under `set -e` when
+  # find returned nothing (xargs invokes dirname with no args).
+  _boot_repo_parent="$(find /media \
+                       -maxdepth 3 \
+                       -type d \
+                       -path '*/.*' \
+                       -prune -o \
+                       -type f \
+                       -name '.boot_repository' \
+                       -exec dirname {} \; \
+                       | head -1)"
 
+  if [ -z "$_boot_repo_parent" ]; then
+    _die "Could not locate .boot_repository under /media — cannot derive LBUOPTS"
+  fi
+
+  LBUOPTS="$(dirname "$_boot_repo_parent")"
   export LBUOPTS
 
   envsubst < "${BOOT}/answers.txt"  > /tmp/ANSWERFILE
