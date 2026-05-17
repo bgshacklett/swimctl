@@ -7,6 +7,7 @@ cache/*
 etc/*
 !etc/pre-network.d
 !etc/unattended.sh
+!etc/unattended.lib.sh
 !etc/unattended.exec.d
 !etc/unattended.conf.d
 etc/unattended.conf.d/*
