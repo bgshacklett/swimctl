@@ -7,7 +7,6 @@
 #   ./scripts/alpine-rpi.sh populate-config  # add the headless alpine apkovl and all relevant configs
 #   ./scripts/alpine-rpi.sh verify           #
 #   ./scripts/alpine-rpi.sh launch           # boot QEMU into diskless Alpine (live/installer)
-#   ./scripts/alpine-rpi.sh sdcard           #
 #   ./scripts/alpine-rpi.sh clean            #
 #
 # Examples:
@@ -518,13 +517,13 @@ verify() {
 
 
 _copy_launch_files() (
-  local TMP="$1"
-  local DTB_FILE="$2"
+  local tmp_dir="$1"
+  local dtb_path="$2"
 
-  cp /mnt/alpine-boot/boot/vmlinuz-rpi "$TMP/kernel"
-  cp /mnt/alpine-boot/boot/initramfs-rpi "$TMP/initrd"
-  cp "/mnt/alpine-boot/$DTB_FILE" "$TMP/dtb"
-  tr "\n" " " < /mnt/alpine-boot/cmdline.txt > "$TMP/cmdline"
+  cp /mnt/alpine-boot/boot/vmlinuz-rpi "$tmp_dir/kernel"
+  cp /mnt/alpine-boot/boot/initramfs-rpi "$tmp_dir/initrd"
+  cp "/mnt/alpine-boot/$dtb_path" "$tmp_dir/dtb"
+  tr "\n" " " < /mnt/alpine-boot/cmdline.txt > "$tmp_dir/cmdline"
 )
 launch() {
   need qemu-system-aarch64
@@ -553,12 +552,6 @@ launch() {
     -serial  mon:stdio \
     -display none \
     -no-reboot
-}
-
-
-sdcard() {
-  # TODO: Implement
-  :
 }
 
 
@@ -712,7 +705,6 @@ case "${1:-help}" in
   verify)                 verify ;;
   launch)                 launch ;;
   test)                   test_qemu ;;
-  sdcard)                 sdcard ;;
   refresh-lock)           refresh_lock ;;
   init-config)            init_config ;;
   clean)                  clean ;;

@@ -50,6 +50,7 @@ fi
 _logger "Found boot media at: $BOOT"
 
 
+# shellcheck source=etc/unattended.lib.sh
 . "$BOOT/unattended.lib.sh"
 
 

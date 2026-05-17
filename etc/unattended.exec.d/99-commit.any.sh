@@ -45,6 +45,7 @@ lbu_commit() {
             echo "Warning: destination path '$_dest' is not writable; commit may fail." >&2
         fi
         # Call lbu with LBU_BACKUPDIR so it won’t treat the path as a media name
+        # shellcheck disable=SC2086  # $_fwd_opts is intentionally word-split into separate args
         LBU_BACKUPDIR="$_dest" lbu commit $_fwd_opts
         return $?
     fi
@@ -61,6 +62,7 @@ lbu_commit() {
             echo "Alt:  LBU_BACKUPDIR=/media/$_media lbu_commit $_fwd_opts" >&2
             return 2
         fi
+        # shellcheck disable=SC2086  # $_fwd_opts is intentionally word-split
         lbu commit $_fwd_opts "$_media"
         return $?
     fi
@@ -80,6 +82,7 @@ lbu_commit() {
         echo "Warning: LBU_BACKUPDIR='$LBU_BACKUPDIR' is not writable; commit may fail." >&2
     fi
 
+    # shellcheck disable=SC2086  # $_fwd_opts is intentionally word-split
     lbu commit $_fwd_opts
 }
 

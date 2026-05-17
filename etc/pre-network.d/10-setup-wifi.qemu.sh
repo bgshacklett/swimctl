@@ -84,16 +84,24 @@ $IP link set usb0 down
 
 
 # Make sure radios exist
-ls /sys/class/net | grep -E '^wlan[0-9]+$' || {
-  echo "No wlan* found. Did modprobe mac80211_hwsim radios=2 succeed?"; exit 1; }
+_have_wlan=0
+for _iface in /sys/class/net/wlan[0-9]*; do
+  [ -e "$_iface" ] && _have_wlan=1 && break
+done
+if [ "$_have_wlan" -eq 0 ]; then
+  echo "No wlan* found. Did modprobe mac80211_hwsim radios=2 succeed?"
+  exit 1
+fi
 
 # pick radios (as you already do)
 WLAN_LIST="$($IP -o link show | awk -F': ' '{print $2}' | grep -E '^wlan[0-9]+$' | sort)"
 AP_WLAN="$(echo "$WLAN_LIST" | sed -n '1p')"   # e.g., wlan0
 STA_WLAN="$(echo "$WLAN_LIST" | sed -n '2p')"  # e.g., wlan1
 
-[ -n "$AP_WLAN" ] && [ -n "$STA_WLAN" ] || {
-  echo "Need two wlan* from hwsim; found: $WLAN_LIST"; exit 1; }
+if [ -z "$AP_WLAN" ] || [ -z "$STA_WLAN" ]; then
+  echo "Need two wlan* from hwsim; found: $WLAN_LIST"
+  exit 1
+fi
 
 # create namespace, move uplink with ip
 $IP netns add ap 2>/dev/null || true

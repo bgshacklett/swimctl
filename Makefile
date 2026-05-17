@@ -49,6 +49,10 @@ refresh-lock:
 init-config:
 	@scripts/alpine-rpi.sh init-config
 
+.PHONY: lint
+lint:
+	@find scripts etc -type f -name '*.sh' -print0 | xargs -0 shellcheck
+
 .PHONY: clean
 clean:
 	@scripts/alpine-rpi.sh clean
